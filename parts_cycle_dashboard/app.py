@@ -1,5 +1,6 @@
 import os
 import random
+import math
 from collections import Counter
 from datetime import datetime, date, timedelta
 
@@ -381,6 +382,87 @@ def priority_maintenance():
     except Exception as e:
         print(f"Error in /api/priority_maintenance: {e}")
         return jsonify({'error': str(e)}), 500
+
+# --- 시뮬레이터 페이지 라우트 ---
+@app.route('/simulator')
+def simulator_page():
+    """유지보수 전략 비용 시뮬레이터 페이지를 렌더링합니다."""
+    # base.html을 상속받으므로, base.html에 필요한 변수가 있다면 전달해야 합니다.
+    # 예를 들어, 모든 부품 목록이 필요하다면 여기서 조회해서 전달할 수 있습니다.
+    return render_template('simulator.html')
+
+# --- 시뮬레이션 API 라우트 ---
+@app.route('/api/simulate', methods=['POST'])
+def run_simulation():
+    """
+    입력값을 받아 TBM과 PdM 시나리오를 시뮬레이션하고 결과를 JSON으로 반환합니다.
+    이 함수는 maintenance_simulator 프로젝트의 로직과 동일합니다.
+    """
+    params = request.get_json()
+
+    # --- 입력 변수 (입력값 또는 기본값) ---
+    simulation_period = params.get('simulation_period', 60)
+    num_components = params.get('num_components', 100)
+    c_part = params.get('c_part', 500000)
+    c_planned_labor = params.get('c_planned_labor', 100000)
+    c_unplanned_labor = params.get('c_unplanned_labor', 300000)
+    c_downtime = params.get('c_downtime', 1000000)
+    mttr = params.get('mttr', 4)
+    eta = params.get('eta', 18)
+    b10_life = params.get('b10_life', 16)
+    tbm_interval = params.get('tbm_interval', 12)
+    tbm_failure_prob = params.get('tbm_failure_prob', 0.05)
+
+    # --- 공통 계산: 고장 1회당 총 손실 비용 ---
+    cost_per_failure = c_part + c_unplanned_labor + (c_downtime * mttr)
+
+    # --- 시나리오 A: 주기정비 (TBM) 비용 계산 ---
+    tbm_results = {}
+    if tbm_interval > 0:
+        # 총 교체 횟수
+        replacements_per_comp = math.floor(simulation_period / tbm_interval)
+        total_replacements = replacements_per_comp * num_components
+        
+        # 계획 교체 비용
+        tbm_results['planned_cost'] = total_replacements * (c_part + c_planned_labor)
+        
+        # 잔존 수명 폐기 비용
+        wasted_life = eta - tbm_interval
+        tbm_results['wasted_life_cost'] = (total_replacements * c_part * (wasted_life / eta)) if wasted_life > 0 and eta > 0 else 0
+        
+        # 주기 내 고장 비용
+        num_failures = total_replacements * tbm_failure_prob
+        tbm_results['failure_cost'] = num_failures * cost_per_failure
+        
+        # TBM 총 비용
+        tbm_results['total_cost'] = tbm_results['planned_cost'] + tbm_results['wasted_life_cost'] + tbm_results['failure_cost']
+        tbm_results['total_replacements'] = total_replacements
+    else:
+        tbm_results = {'total_cost': 0, 'planned_cost': 0, 'wasted_life_cost': 0, 'failure_cost': 0, 'total_replacements': 0}
+
+    # --- 시나리오 B: 예측정비 (PdM) 비용 계산 ---
+    pdm_results = {}
+    if b10_life > 0:
+        # 총 교체 횟수 (B10 주기에 따름)
+        replacements_per_comp = simulation_period / b10_life
+        total_replacements = replacements_per_comp * num_components
+        
+        # 계획 교체 비용 (90%는 계획대로 교체)
+        pdm_results['planned_cost'] = (total_replacements * 0.9) * (c_part + c_planned_labor)
+        
+        # 조기 고장 비용 (10%는 B10 이전에 고장)
+        pdm_results['failure_cost'] = (total_replacements * 0.1) * cost_per_failure
+        
+        # PdM에서는 잔존 수명 폐기 비용이 발생하지 않음
+        pdm_results['wasted_life_cost'] = 0
+        
+        # PdM 총 비용
+        pdm_results['total_cost'] = pdm_results['planned_cost'] + pdm_results['failure_cost']
+        pdm_results['total_replacements'] = total_replacements
+    else:
+        pdm_results = {'total_cost': 0, 'planned_cost': 0, 'wasted_life_cost': 0, 'failure_cost': 0, 'total_replacements': 0}
+
+    return jsonify({'tbm': tbm_results, 'pdm': pdm_results})
 
 # --- 가상 데이터 생성을 위한 헬퍼 함수 ---
 def _generate_fake_data(num_records=150):
