@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>부품 수명 분석 종합 대시보드</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .container-xl { max-width: 1400px; }
+        .chart-container {
+            position: relative;
+            height: 450px; /* 차트 높이를 키워 가독성 확보 */
+            background-color: white;
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+        }
+        .description-table {
+            height: 450px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-xl mt-5">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="text-center mb-0">종합 대시보드</h1>
+            <a href="/" class="btn btn-outline-secondary">메인으로 돌아가기</a>
+        </div>
+        
+        <ul class="nav nav-tabs" id="dashboard-tabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="dist-tab" data-bs-toggle="tab" data-bs-target="#dist-pane" type="button" role="tab">부품 분포 비율</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="rank-tab" data-bs-toggle="tab" data-bs-target="#rank-pane" type="button" role="tab">고장 부품 순위</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="heatmap-tab" data-bs-toggle="tab" data-bs-target="#heatmap-pane" type="button" role="tab">수명 분포 (히트맵)</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="install-tab" data-bs-toggle="tab" data-bs-target="#install-pane" type="button" role="tab">설치 추이</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="ratio-tab" data-bs-toggle="tab" data-bs-target="#ratio-pane" type="button" role="tab">고장 수명 비율</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="trend-tab" data-bs-toggle="tab" data-bs-target="#trend-pane" type="button" role="tab">월별 고장 추이</button>
+            </li>
+        </ul>
+
+        <div class="tab-content border border-top-0 rounded-bottom p-4 bg-white" id="dashboard-tabs-content">
+            <div class="tab-pane fade show active" id="dist-pane" role="tabpanel">
+                <div class="row">
+                    <div class="col-lg-8">
+                        <div class="chart-container"><canvas id="partDistributionChart"></canvas></div>
+                    </div>
+                    <div class="col-lg-4">
+                        <table class="table table-bordered description-table">
+                            <thead class="table-light"><tr><th>지표 설명 및 활용 방안</th></tr></thead>
+                            <tbody>
+                                <tr><td><strong>무엇을 보여주나요?</strong><br>전체 부품 중 각 부품 유형이 차지하는 비율을 보여줍니다.</td></tr>
+                                <tr><td><strong>어떻게 활용하나요?</strong><br>가장 많이 사용하는 핵심 부품이 무엇인지 파악하여 재고 관리 및 구매 전략의 우선순위를 정하는 데 사용합니다.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="tab-pane fade" id="rank-pane" role="tabpanel">
+                <div class="row">
+                    <div class="col-lg-8">
+                        <div class="chart-container"><canvas id="failureRankingChart"></canvas></div>
+                    </div>
+                    <div class="col-lg-4">
+                        <table class="table table-bordered description-table">
+                            <thead class="table-light"><tr><th>지표 설명 및 활용 방안</th></tr></thead>
+                            <tbody>
+                                <tr><td><strong>무엇을 보여주나요?</strong><br>가장 고장이 잦은 부품의 순위를 보여줍니다.</td></tr>
+                                <tr><td><strong>어떻게 활용하나요?</strong><br>가장 취약한 부품을 즉시 식별하여 집중적인 원인 분석(RCA) 및 개선 활동의 첫 단계로 활용합니다. 유지보수 예산과 인력을 어디에 집중해야 할지 알려주는 핵심 지표입니다.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="tab-pane fade" id="heatmap-pane" role="tabpanel">
+                <div class="row">
+                    <div class="col-lg-8">
+                        <div class="chart-container"><canvas id="lifespanDistributionChart"></canvas></div>
+                    </div>
+                    <div class="col-lg-4">
+                        <table class="table table-bordered description-table">
+                             <thead class="table-light"><tr><th>지표 설명 및 활용 방안</th></tr></thead>
+                            <tbody>
+                                <tr><td><strong>무엇을 보여주나요?</strong><br>월별, 부품별 고장 발생 빈도를 색상의 농도로 보여줍니다. 색이 진할수록 해당 월에 특정 부품의 고장이 집중되었음을 의미합니다.</td></tr>
+                                <tr><td><strong>어떻게 활용하나요?</strong><br>특정 시기(계절, 생산 주기 등)에 유독 고장이 잦은 부품이 있는지 파악하여 계절성 요인이나 특정 이벤트와의 연관성을 분석할 수 있습니다.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="tab-pane fade" id="install-pane" role="tabpanel">
+                <div class="row">
+                    <div class="col-lg-8">
+                        <div class="chart-container"><canvas id="installationTrendChart"></canvas></div>
+                    </div>
+                    <div class="col-lg-4">
+                        <table class="table table-bordered description-table">
+                            <thead class="table-light"><tr><th>지표 설명 및 활용 방안</th></tr></thead>
+                            <tbody>
+                                <tr><td><strong>무엇을 보여주나요?</strong><br>시간에 따른 부품의 신규 설치 수량을 보여줍니다.</td></tr>
+                                <tr><td><strong>어떻게 활용하나요?</strong><br>전체 설비 및 부품군의 노후화 정도를 파악하고, 대규모 교체 시기가 언제쯤 도래할지 예측하는 데 사용합니다. 특정 시점에 설치가 급증했다면, 해당 부품들이 비슷한 시기에 수명 만료에 도달할 것을 대비할 수 있습니다.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="tab-pane fade" id="ratio-pane" role="tabpanel">
+                <div class="row">
+                    <div class="col-lg-8">
+                        <div class="chart-container"><canvas id="timeToFailureChart"></canvas></div>
+                    </div>
+                    <div class="col-lg-4">
+                        <table class="table table-bordered description-table">
+                            <thead class="table-light"><tr><th>지표 설명 및 활용 방안</th></tr></thead>
+                            <tbody>
+                                <tr><td><strong>무엇을 보여주나요?</strong><br>각 부품 유형의 '총 운영 시간' 대비 '고장 상태로 누적된 시간'의 비율을 보여줍니다.</td></tr>
+                                <tr><td><strong>어떻게 활용하나요?</strong><br>단순히 고장 횟수가 아닌, '만성적인 문제'를 가진 부품을 식별하는 데 유용합니다. 이 비율이 높은 부품은 잦은 수리 또는 긴 수리 시간으로 인해 설비 가용성을 저해하는 주된 원인일 수 있습니다.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="tab-pane fade" id="trend-pane" role="tabpanel">
+                <div class="row">
+                    <div class="col-lg-8">
+                        <div class="chart-container"><canvas id="failureRateTrendChart"></canvas></div>
+                    </div>
+                    <div class="col-lg-4">
+                        <table class="table table-bordered description-table">
+                             <thead class="table-light"><tr><th>지표 설명 및 활용 방안</th></tr></thead>
+                            <tbody>
+                                <tr><td><strong>무엇을 보여주나요?</strong><br>매월 발생한 전체 고장 건수를 보여줍니다.</td></tr>
+                                <tr><td><strong>어떻게 활용하나요?</strong><br>전체 시스템의 신뢰성 상태를 한눈에 모니터링하는 지표입니다. 고장 건수가 지속적으로 증가한다면, 유지보수 전략 전반에 대한 검토가 필요하다는 신호입니다.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@2.0.1/dist/chartjs-chart-matrix.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>

@@ -25,11 +25,15 @@ def weibull_log_likelihood_censored(params, t, e):
     if beta <= 0 or eta <= 0:
         return np.inf
         
+    epsilon = 1e-9
+    pdf_vals = weibull_min.pdf(t[e==1], c=beta, scale=eta)
+    sf_vals = weibull_min.sf(t[e==0], c=beta, scale=eta)
+    
     # 고장난 데이터(event=1)에 대한 우도 계산
-    log_likelihood_failure = np.sum(np.log(weibull_min.pdf(t[e==1], c=beta, scale=eta)))
+    log_likelihood_failure = np.sum(np.log(pdf_vals + epsilon))
     
     # 중도 절단된 데이터(event=0)에 대한 우도 계산 (생존 함수)
-    log_likelihood_censored = np.sum(np.log(weibull_min.sf(t[e==0], c=beta, scale=eta)))
+    log_likelihood_censored = np.sum(np.log(sf_vals + epsilon))
     
     # 전체 로그 우도의 합 (최소화를 위해 음수로 변환)
     return -(log_likelihood_failure + log_likelihood_censored)
@@ -83,26 +87,48 @@ def perform_weibull_analysis(db_uri='sqlite:///pump_data.db'):
                 method='Nelder-Mead'
             )
 
-            # 최적화 결과에서 파라미터 추출
+            # ⭐️ 문제 해결: 최적화 실패 또는 결과값이 비정상일 경우 예외 처리
+            if not solution.success or not np.all(np.isfinite(solution.x)):
+                raise ValueError("분석 모델 수렴 실패")
+            
             beta, eta = solution.x
 
+            b10_life_val = weibull_min.ppf(0.1, c=beta, scale=eta)
+            # ⭐️ 문제 해결: 계산된 B10 수명이 비정상적인 값(NaN, Inf)인지 확인
+            if not np.isfinite(b10_life_val):
+                b10_life_val = None
+
+            max_life = lifetimes.max()
+            x_vals = pd.Series(range(0, int(max_life * 1.5), 50))
+            survival_prob = weibull_min.sf(x_vals, c=beta, scale=eta)
+
+            results[part_id] = {
+                'error': None,
+                'beta': round(beta, 2),
+                'eta': round(eta, 0),
+                'b10_life': round(b10_life_val, 0) if b10_life_val is not None else None,
+                'plot_data': {
+                    'x': x_vals.tolist(),
+                    'y': [p if np.isfinite(p) else None for p in survival_prob] # ⭐️ 비정상 값 필터링
+                }
+            }
         except Exception as e:
             results[part_id] = {
-                'error': f'분석 계산 중 오류 발생: {e}',
-                'beta': None, 'eta': None, 'b10_life': None, 'plot_data': None
+                'error': f'분석 계산 중 오류: {e}', 'beta': None, 'eta': None,
+                'b10_life': None, 'plot_data': None
             }
             continue
 
-        max_life = lifetimes.max()
-        x_vals = pd.Series(range(0, int(max_life * 1.5), 50))
-        survival_prob = weibull_min.sf(x_vals, c=beta, scale=eta)
+        # max_life = lifetimes.max()
+        # x_vals = pd.Series(range(0, int(max_life * 1.5), 50))
+        # survival_prob = weibull_min.sf(x_vals, c=beta, scale=eta)
 
-        results[part_id] = {
-            'error': None,
-            'beta': round(beta, 2),
-            'eta': round(eta, 0),
-            'b10_life': round(weibull_min.ppf(0.1, c=beta, scale=eta), 0),
-            'plot_data': {'x': x_vals.tolist(), 'y': survival_prob.tolist()}
-        }
+        # results[part_id] = {
+        #     'error': None,
+        #     'beta': round(beta, 2),
+        #     'eta': round(eta, 0),
+        #     'b10_life': round(weibull_min.ppf(0.1, c=beta, scale=eta), 0),
+        #     'plot_data': {'x': x_vals.tolist(), 'y': survival_prob.tolist()}
+        # }
         
     return results

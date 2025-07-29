@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>유지보수 전략 비용 시뮬레이터</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Noto Sans KR', sans-serif; background-color: #f0f2f5; }
+        .kpi-value { font-weight: 700; color: #1d4ed8; }
+        .savings-value { font-weight: 700; color: #16a34a; }
+        .cost-value { font-weight: 700; color: #dc2626; }
+        input[type=number] { text-align: right; }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8 max-w-7xl">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-900">유지보수 전략 비용 시뮬레이터</h1>
+            <p class="text-lg text-gray-600 mt-2">주기정비(TBM)와 예측정비(PdM)의 비용 효율성을 비교 분석합니다.</p>
+        </header>
+
+        <!-- 입력 섹션 -->
+        <section id="inputs" class="bg-white p-6 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-bold border-b pb-2 mb-4">시뮬레이션 변수 입력</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div>
+                    <label for="simulation_period" class="block text-sm font-medium text-gray-700">시뮬레이션 기간 (개월)</label>
+                    <input type="number" id="simulation_period" value="60" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label for="num_components" class="block text-sm font-medium text-gray-700">대상 부품 수량</label>
+                    <input type="number" id="num_components" value="100" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                </div>
+                <div>
+                    <label for="c_part" class="block text-sm font-medium text-gray-700">부품 원가 (원)</label>
+                    <input type="number" id="c_part" value="500000" step="10000" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                </div>
+                <div>
+                    <label for="c_planned_labor" class="block text-sm font-medium text-gray-700">계획 정비 인건비 (원)</label>
+                    <input type="number" id="c_planned_labor" value="100000" step="10000" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                </div>
+                <div>
+                    <label for="c_unplanned_labor" class="block text-sm font-medium text-gray-700">긴급 정비 인건비 (원)</label>
+                    <input type="number" id="c_unplanned_labor" value="300000" step="10000" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                </div>
+                <div>
+                    <label for="c_downtime" class="block text-sm font-medium text-gray-700">기회손실 비용 (원/시간)</label>
+                    <input type="number" id="c_downtime" value="1000000" step="100000" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                </div>
+                <div>
+                    <label for="mttr" class="block text-sm font-medium text-gray-700">평균 수리 시간 (시간)</label>
+                    <input type="number" id="mttr" value="4" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                </div>
+                <div>
+                    <label for="eta" class="block text-sm font-medium text-gray-700">평균 수명 η (개월)</label>
+                    <input type="number" id="eta" value="14" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                </div>
+                <div>
+                    <label for="b10_life" class="block text-sm font-medium text-gray-700">B10 수명 (개월)</label>
+                    <input type="number" id="b10_life" value="12" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                </div>
+                <div>
+                    <label for="tbm_interval" class="block text-sm font-medium text-gray-700">주기정비 교체 주기 (개월)</label>
+                    <input type="number" id="tbm_interval" value="10" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                </div>
+                <div>
+                    <label for="tbm_failure_prob" class="block text-sm font-medium text-gray-700">주기 내 고장 확률 (%)</label>
+                    <input type="number" id="tbm_failure_prob" value="3" step="0.1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                </div>
+            </div>
+            <div class="mt-6 text-center">
+                <button id="simulate-btn" class="bg-blue-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    시뮬레이션 실행
+                </button>
+            </div>
+        </section>
+        
+        <!-- 결과 대시보드 -->
+        <section id="results" class="hidden">
+            <!-- 종합 결과 KPI -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div class="bg-white p-6 rounded-lg shadow-md text-center">
+                    <h3 class="text-lg font-bold text-gray-500">주기정비(TBM) 총 비용</h3>
+                    <p id="total-cost-tbm" class="text-4xl cost-value">0 원</p>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-md text-center">
+                    <h3 class="text-lg font-bold text-gray-500">예측정비(PdM) 총 비용</h3>
+                    <p id="total-cost-pdm" class="text-4xl kpi-value">0 원</p>
+                </div>
+                <div class="bg-green-100 border-l-4 border-green-500 p-6 rounded-lg shadow-md text-center">
+                    <h3 class="text-lg font-bold text-green-800">총 기대 절감액</h3>
+                    <p id="total-savings" class="text-4xl savings-value">0 원</p>
+                    <p id="savings-percent" class="text-md text-green-700">(0.0%)</p>
+                </div>
+            </div>
+
+            <!-- 상세 비교 -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- TBM 상세 -->
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h3 class="text-2xl font-bold mb-4">시나리오 A: 주기정비 (TBM)</h3>
+                    <ul class="space-y-3 text-lg">
+                        <li class="flex justify-between"><span>총 교체 횟수:</span> <strong id="replacements-tbm" class="kpi-value">0 회</strong></li>
+                        <li class="flex justify-between border-t pt-3"><span>계획 교체 비용:</span> <span id="planned-cost-tbm">0 원</span></li>
+                        <li class="flex justify-between"><span>잔존 수명 폐기 비용:</span> <span id="wasted-cost-tbm" class="text-orange-600 font-bold">0 원</span></li>
+                        <li class="flex justify-between"><span>주기 내 고장 비용:</span> <span id="failure-cost-tbm" class="cost-value">0 원</span></li>
+                    </ul>
+                    <div class="mt-4" style="height: 300px;">
+                        <canvas id="tbmChart"></canvas>
+                    </div>
+                </div>
+                <!-- PdM 상세 -->
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h3 class="text-2xl font-bold mb-4">시나리오 B: 예측정비 (PdM)</h3>
+                    <ul class="space-y-3 text-lg">
+                        <li class="flex justify-between"><span>총 교체 횟수 (예상):</span> <strong id="replacements-pdm" class="kpi-value">0 회</strong></li>
+                        <li class="flex justify-between border-t pt-3"><span>계획 교체 비용:</span> <span id="planned-cost-pdm">0 원</span></li>
+                        <li class="flex justify-between"><span>잔존 수명 폐기 비용:</span> <span class="text-green-600 font-bold">0 원</span></li>
+                        <li class="flex justify-between"><span>조기 고장 비용:</span> <span id="failure-cost-pdm" class="cost-value">0 원</span></li>
+                    </ul>
+                    <div class="mt-4" style="height: 300px;">
+                        <canvas id="pdmChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const simulateBtn = document.getElementById('simulate-btn');
+            const resultsSection = document.getElementById('results');
+            let tbmChartInstance, pdmChartInstance;
+
+            const formatCurrency = (value) => {
+                return new Intl.NumberFormat('ko-KR').format(Math.round(value)) + ' 원';
+            };
+
+            const runSimulation = async () => {
+                const inputs = {
+                    simulation_period: parseFloat(document.getElementById('simulation_period').value),
+                    num_components: parseInt(document.getElementById('num_components').value),
+                    c_part: parseFloat(document.getElementById('c_part').value),
+                    c_planned_labor: parseFloat(document.getElementById('c_planned_labor').value),
+                    c_unplanned_labor: parseFloat(document.getElementById('c_unplanned_labor').value),
+                    c_downtime: parseFloat(document.getElementById('c_downtime').value),
+                    mttr: parseFloat(document.getElementById('mttr').value),
+                    eta: parseFloat(document.getElementById('eta').value),
+                    b10_life: parseFloat(document.getElementById('b10_life').value),
+                    tbm_interval: parseFloat(document.getElementById('tbm_interval').value),
+                    tbm_failure_prob: parseFloat(document.getElementById('tbm_failure_prob').value) / 100,
+                };
+
+                try {
+                    const response = await fetch('/api/simulate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(inputs)
+                    });
+                    if (!response.ok) {
+                        throw new Error('시뮬레이션 서버 오류');
+                    }
+                    const results = await response.json();
+                    updateDashboard(results);
+                    resultsSection.classList.remove('hidden');
+                } catch (error) {
+                    console.error('시뮬레이션 실패:', error);
+                    alert('시뮬레이션 실행 중 오류가 발생했습니다.');
+                }
+            };
+
+            const updateDashboard = (results) => {
+                const { tbm, pdm } = results;
+
+                // KPI 업데이트
+                document.getElementById('total-cost-tbm').textContent = formatCurrency(tbm.total_cost);
+                document.getElementById('total-cost-pdm').textContent = formatCurrency(pdm.total_cost);
+                const savings = tbm.total_cost - pdm.total_cost;
+                const savingsPercent = tbm.total_cost > 0 ? (savings / tbm.total_cost * 100).toFixed(1) : 0;
+                document.getElementById('total-savings').textContent = formatCurrency(savings);
+                document.getElementById('savings-percent').textContent = `(${savingsPercent}%)`;
+
+                // TBM 상세 업데이트
+                document.getElementById('replacements-tbm').textContent = `${Math.round(tbm.total_replacements).toLocaleString()} 회`;
+                document.getElementById('planned-cost-tbm').textContent = formatCurrency(tbm.planned_cost);
+                document.getElementById('wasted-cost-tbm').textContent = formatCurrency(tbm.wasted_life_cost);
+                document.getElementById('failure-cost-tbm').textContent = formatCurrency(tbm.failure_cost);
+
+                // PdM 상세 업데이트
+                document.getElementById('replacements-pdm').textContent = `${Math.round(pdm.total_replacements).toLocaleString()} 회`;
+                document.getElementById('planned-cost-pdm').textContent = formatCurrency(pdm.planned_cost);
+                document.getElementById('failure-cost-pdm').textContent = formatCurrency(pdm.failure_cost);
+                
+                // 차트 업데이트
+                updateChart('tbmChart', tbmChartInstance, '주기정비(TBM) 비용 구성', [tbm.planned_cost, tbm.wasted_life_cost, tbm.failure_cost]);
+                updateChart('pdmChart', pdmChartInstance, '예측정비(PdM) 비용 구성', [pdm.planned_cost, 0, pdm.failure_cost]);
+            };
+
+            const updateChart = (canvasId, chartInstance, title, data) => {
+                const ctx = document.getElementById(canvasId).getContext('2d');
+                const chartData = {
+                    labels: ['계획 교체 비용', '잔존 수명 폐기 비용', '고장 비용'],
+                    datasets: [{
+                        data: data,
+                        backgroundColor: ['#60a5fa', '#f97316', '#dc2626'],
+                    }]
+                };
+                
+                if (canvasId === 'tbmChart' && tbmChartInstance) {
+                    tbmChartInstance.data = chartData;
+                    tbmChartInstance.update();
+                } else if (canvasId === 'pdmChart' && pdmChartInstance) {
+                    pdmChartInstance.data = chartData;
+                    pdmChartInstance.update();
+                } else {
+                    const newChart = new Chart(ctx, {
+                        type: 'doughnut',
+                        data: chartData,
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                title: { display: true, text: title, font: { size: 16 } },
+                                legend: { position: 'bottom' },
+                                tooltip: {
+                                    callbacks: {
+                                        label: (context) => {
+                                            const label = context.label || '';
+                                            const value = context.raw || 0;
+                                            return `${label}: ${formatCurrency(value)}`;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                    if (canvasId === 'tbmChart') tbmChartInstance = newChart;
+                    if (canvasId === 'pdmChart') pdmChartInstance = newChart;
+                }
+            };
+
+            simulateBtn.addEventListener('click', runSimulation);
+            runSimulation(); // 페이지 로드 시 기본값으로 한번 실행
+        });
+    </script>
+</body>
+</html>
