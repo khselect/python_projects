@@ -6,6 +6,7 @@
     <title>유지보수 전략 비용 시뮬레이터</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
     <style>
@@ -16,6 +17,7 @@
         input[type=number] { text-align: right; }
         .modal-body .calc-step { border-left: 3px solid #e5e7eb; padding-left: 1rem; margin-bottom: 1rem; }
         .modal-body .calc-result { font-weight: 700; color: #1d4ed8; }
+        [data-bs-toggle="modal"]:hover { cursor: pointer; }
     </style>
 </head>
 <body class="text-gray-800">
@@ -26,11 +28,9 @@
             <p class="text-lg text-gray-600 mt-2">주기정비(TBM)와 예측정비(PdM)의 비용 효율성을 비교 분석합니다.</p>
         </header>
 
-        <!-- 입력 섹션 -->
         <section id="inputs" class="bg-white p-6 rounded-lg shadow-md mb-8">
             <h2 class="text-2xl font-bold border-b pb-2 mb-4">시뮬레이션 변수 입력</h2>
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <!-- 20% 절감을 위한 기본값으로 설정 -->
                 <div>
                     <label for="simulation_period" class="block text-sm font-medium text-gray-700">시뮬레이션 기간 (개월)</label>
                     <input type="number" id="simulation_period" value="60" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
@@ -49,7 +49,7 @@
                 </div>
                 <div>
                     <label for="c_unplanned_labor" class="block text-sm font-medium text-gray-700">긴급 정비 인건비 (원)</label>
-                    <input type="number" id="c_unplanned_labor" value="300000" step="10000" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                    <input type="number" id="c_unplanned_labor" value="400000" step="10000" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
                 </div>
                 <div>
                     <label for="c_downtime" class="block text-sm font-medium text-gray-700">기회손실 비용 (원/시간)</label>
@@ -61,7 +61,7 @@
                 </div>
                 <div>
                     <label for="eta" class="block text-sm font-medium text-gray-700">평균 수명 η (개월)</label>
-                    <input type="number" id="eta" value="18" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                    <input type="number" id="eta" value="24" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
                 </div>
                 <div>
                     <label for="b10_life" class="block text-sm font-medium text-gray-700">B10 수명 (개월)</label>
@@ -83,7 +83,6 @@
             </div>
         </section>
 
-        <!-- 결과 대시보드 -->
         <section id="results" class="hidden">
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 <div class="bg-white p-6 rounded-lg shadow-md text-center">
@@ -101,28 +100,55 @@
                 </div>
             </div>
 
-            <div class="bg-white p-6 rounded-lg shadow-md">
+            <section id="timeseries-section" class="bg-white p-6 rounded-lg shadow-md mt-8 hidden">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h3 class="text-2xl font-bold">월별 교체/고장 요약</h3>
+                        <button id="download-csv" class="btn btn-outline-secondary btn-sm">CSV 다운로드</button>
+                </div>
+                <div style="height:360px;" class="mb-3">
+                    <canvas id="timeseriesChart"></canvas>
+                </div>
+                <div class="table-responsive">
+                    <table id="timeseriesTable" class="table table-sm table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>월</th>
+                                <th>TBM 교체</th><th>TBM 고장</th><th>TBM 비용(원)</th>
+                                <th>PdM 교체</th><th>PdM 고장</th><th>PdM 비용(원)</th>
+                                <th>누적 절감액(원)</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div class="d-flex justify-content-center align-items-center mt-3">
+                    <button id="prev-page" class="btn btn-secondary btn-sm">이전</button>
+                    <span id="page-info" class="mx-3 text-sm"></span>
+                    <button id="next-page" class="btn btn-secondary btn-sm">다음</button>
+                </div>
+            </section>
+
+            <div class="bg-white p-6 rounded-lg shadow-md mt-8">
                 <h3 class="text-2xl font-bold mb-4 text-center">전략별 비용 구조 비교</h3>
                 <div style="height: 400px;">
                     <canvas id="comparisonChart"></canvas>
                 </div>
                 
-                <!-- ⭐️ 비용 항목 설명 섹션을 추가 ⭐️ -->
                 <div id="cost-explanation" class="mt-8 border-t pt-6">
                     <h4 class="text-xl font-bold mb-4">비용 항목 설명</h4>
                     <div class="space-y-4 text-gray-700">
                         <div class="p-4 bg-gray-50 rounded-lg">
-                            <p class="font-bold text-blue-600">계획 교체 비용</p>
+                            <p class="font-bold text-blue-600" data-bs-toggle="modal" data-bs-target="#exampleModal" data-type="planned">계획 교체 비용</p>
                             <p class="text-sm">정해진 주기에 따라 부품을 교체하는 데 드는 직접 비용입니다.</p>
                             <p class="text-xs mt-1 text-gray-500 font-mono">산술식: 총 교체 횟수 × (부품 원가 + 계획 정비 인건비)</p>
                         </div>
                         <div class="p-4 bg-orange-50 rounded-lg">
-                            <p class="font-bold text-orange-600">잔존 수명 폐기 비용 (TBM의 숨은 비용)</p>
+                            <p class="font-bold text-orange-600" data-bs-toggle="modal" data-bs-target="#exampleModal" data-type="wasted">잔존 수명 폐기 비용 (TBM의 숨은 비용)</p>
                             <p class="text-sm">아직 사용할 수 있는 부품을 너무 일찍 교체하여 발생하는 가치 손실입니다. 예측정비(PdM)에서는 이 비용이 발생하지 않습니다.</p>
                             <p class="text-xs mt-1 text-gray-500 font-mono">산술식: 총 교체 횟수 × 부품 원가 × ( (평균수명 - 교체주기) / 평균수명 )</p>
                         </div>
                         <div class="p-4 bg-red-50 rounded-lg">
-                            <p class="font-bold text-red-600">고장 비용</p>
+                            <p class="font-bold text-red-600" data-bs-toggle="modal" data-bs-target="#exampleModal" data-type="failure">고장 비용</p>
                             <p class="text-sm">정비 주기를 버티지 못하고 갑자기 고장 나거나, B10 수명 이전에 조기 고장 날 경우 발생하는 총 손실입니다.</p>
                             <p class="text-xs mt-1 text-gray-500 font-mono">산술식: 총 고장 횟수 × (부품 원가 + 긴급 정비 인건비 + 기회손실 비용)</p>
                         </div>
@@ -132,7 +158,6 @@
         </section>
     </div>
 
-    <!-- Modal -->
     <div class="modal fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
@@ -141,8 +166,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body" id="modal-content-body">
-                <!-- JS가 이 영역을 동적으로 채웁니다. -->
-            </div>
+                </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
             </div>
@@ -155,11 +179,17 @@
             const simulateBtn = document.getElementById('simulate-btn');
             const resultsSection = document.getElementById('results');
             let comparisonChartInstance;
+            let timeseriesChart;
+            
+            // ⭐️ 수정: 페이지네이션 관련 변수 추가
+            let __tsRows = [];
+            let currentPage = 1;
+            const rowsPerPage = 12;
 
             const formatCurrency = (value) => new Intl.NumberFormat('ko-KR').format(Math.round(value)) + ' 원';
 
-            const runSimulation = async () => {
-                const inputs = {
+            const getInputs = () => {
+                return {
                     simulation_period: parseFloat(document.getElementById('simulation_period').value),
                     num_components: parseInt(document.getElementById('num_components').value),
                     c_part: parseFloat(document.getElementById('c_part').value),
@@ -172,7 +202,10 @@
                     tbm_interval: parseFloat(document.getElementById('tbm_interval').value),
                     tbm_failure_prob: parseFloat(document.getElementById('tbm_failure_prob').value) / 100,
                 };
+            };
 
+            const runSimulation = async () => {
+                const inputs = getInputs(); 
                 try {
                     const response = await fetch('/api/simulate', {
                         method: 'POST',
@@ -200,6 +233,12 @@
                 document.getElementById('savings-percent').textContent = `(${savingsPercent}%)`;
                 
                 updateComparisonChart(tbm, pdm);
+
+                if (results.timeseries && results.timeseries.length) {
+                    // ⭐️ 수정: renderTimeTable을 호출하여 페이지네이션 시작
+                    renderTimeTable(results.timeseries);
+                    drawTimeSeriesChart(results.timeseries, 30, tbm.total_cost);
+                }
             };
 
             const updateComparisonChart = (tbm, pdm) => {
@@ -243,8 +282,126 @@
                     });
                 }
             };
+            
+            // ⭐️ 추가: 현재 페이지의 데이터만 테이블에 표시하는 함수
+            const displayPage = (page) => {
+                const tbody = document.querySelector('#timeseriesTable tbody');
+                tbody.innerHTML = '';
+                const pageInfo = document.getElementById('page-info');
+                const prevBtn = document.getElementById('prev-page');
+                const nextBtn = document.getElementById('next-page');
 
-            // ⭐️ 모달 내용 생성 및 표시 로직 추가 ⭐️
+                const start = (page - 1) * rowsPerPage;
+                const end = start + rowsPerPage;
+                const paginatedItems = __tsRows.slice(start, end);
+
+                let baseCumulativeSavings = 0;
+                if (start > 0) {
+                    const prevItems = __tsRows.slice(0, start);
+                    prevItems.forEach(r => {
+                        baseCumulativeSavings += (r.tbm_cost || 0) - (r.pdm_cost || 0);
+                    });
+                }
+                
+                let cumulativeOnPage = baseCumulativeSavings;
+
+                paginatedItems.forEach(r => {
+                    cumulativeOnPage += (r.tbm_cost || 0) - (r.pdm_cost || 0);
+                    const tr = tbody.insertRow();
+                    tr.innerHTML = `
+                        <td>${r.month}</td>
+                        <td>${r.tbm_replacements}</td><td>${r.tbm_failures}</td><td>${formatCurrency(r.tbm_cost||0)}</td>
+                        <td>${r.pdm_replacements}</td><td>${r.pdm_failures}</td><td>${formatCurrency(r.pdm_cost||0)}</td>
+                        <td><strong>${formatCurrency(cumulativeOnPage)}</strong></td>`;
+                });
+
+                const totalPages = Math.ceil(__tsRows.length / rowsPerPage);
+                pageInfo.textContent = `Page ${page} / ${totalPages}`;
+                prevBtn.disabled = page === 1;
+                nextBtn.disabled = page === totalPages;
+            };
+            
+            // ⭐️ 수정: 전체 데이터를 저장하고 첫 페이지를 표시하는 역할로 변경
+            const renderTimeTable = (ts) => {
+                __tsRows = ts;
+                currentPage = 1;
+                displayPage(currentPage);
+                document.getElementById('timeseries-section').classList.remove('hidden');
+            };
+
+            const drawTimeSeriesChart = (ts, targetPct = 30, tbmTotal = 0) => {
+                const labels = ts.map(r => r.month);
+                const tbm = ts.map(r => r.tbm_cost || 0);
+                const pdm = ts.map(r => r.pdm_cost || 0);
+                let s = 0, cum = ts.map(r => (s += (r.tbm_cost||0) - (r.pdm_cost||0)));
+
+                if (timeseriesChart) timeseriesChart.destroy();
+                const ctx = document.getElementById('timeseriesChart').getContext('2d');
+                const ann = tbmTotal ? {
+                    target: { 
+                        type: 'line', yMin: tbmTotal * targetPct / 100, yMax: tbmTotal * targetPct / 100,
+                        borderDash: [6, 6], borderColor: 'gray', borderWidth: 1,
+                        label: { enabled: true, content: `목표 절감액(${targetPct}%)`, position: 'start', yAdjust: -10, font: {weight: 'bold'} } 
+                    }
+                } : {}; 
+
+                timeseriesChart = new Chart(ctx, {
+                    type:'bar', data:{ labels, datasets:[
+                        { label:'TBM 비용', data:tbm, yAxisID:'y', backgroundColor: 'rgba(255, 99, 132, 0.7)' },
+                        { label:'PdM 비용', data:pdm, yAxisID:'y', backgroundColor: 'rgba(54, 162, 235, 0.7)' }, 
+                        { label:'누적 절감액', data:cum, type:'line', yAxisID:'y1', borderWidth: 2, borderColor: '#16a34a' }
+                    ]},
+                    options:{ responsive:true, maintainAspectRatio:false,
+                        interaction:{mode:'index', intersect:false},
+                        plugins:{ annotation:{ annotations:ann } },
+                        scales:{
+                            y: { beginAtZero:true, title:{ display:true, text:'월별 비용(원)' } },
+                            y1: { position:'right', beginAtZero:true, grid:{ drawOnChartArea:false },
+                            title:{ display:true, text:'누적 절감액(원)' } }
+                        }
+                    }
+                })
+            };
+
+            const highlightTS = (idx) => {
+                if (!timeseriesChart) return;
+                timeseriesChart.setActiveElements([
+                {datasetIndex:0,index:idx},{datasetIndex:1,index:idx},{datasetIndex:2,index:idx}
+                ]);
+                timeseriesChart.update();
+            };
+
+            // ⭐️ 추가: 페이지네이션 버튼 이벤트 리스너
+            document.getElementById('prev-page')?.addEventListener('click', () => {
+                if (currentPage > 1) {
+                    currentPage--;
+                    displayPage(currentPage);
+                }
+            });
+
+            document.getElementById('next-page')?.addEventListener('click', () => {
+                const totalPages = Math.ceil(__tsRows.length / rowsPerPage);
+                if (currentPage < totalPages) {
+                    currentPage++;
+                    displayPage(currentPage);
+                }
+            });
+
+            document.getElementById('download-csv')?.addEventListener('click', () => {
+                if (!__tsRows.length) return;
+                let acc = 0;
+                const header = ['month','tbm_rep','tbm_fail','tbm_cost','pdm_rep','pdm_fail','pdm_cost','cum_save'];
+                const rows = __tsRows.map(r=>{
+                    acc += (r.tbm_cost||0)-(r.pdm_cost||0);
+                    return [r.month,r.tbm_replacements,r.tbm_failures,r.tbm_cost||0,
+                    r.pdm_replacements,r.pdm_failures,r.pdm_cost||0,acc];
+                });
+                const csv = [header.join(','), ...rows.map(r=>r.join(','))].join('\n');
+                const blob = new Blob([csv],{type:'text/csv'}); const url = URL.createObjectURL(blob);
+                const a=document.createElement('a'); a.href=url; a.download='timeseries.csv'; a.click();
+                URL.revokeObjectURL(url);
+            });
+
             const exampleModal = document.getElementById('exampleModal');
             exampleModal.addEventListener('show.bs.modal', function (event) {
                 const button = event.relatedTarget;
@@ -265,7 +422,7 @@
                     contentHTML = `
                         <div class="calc-step">
                             <p><strong>1. 총 교체 횟수:</strong></p>
-                            <p class="font-mono text-sm">(${inputs.simulation_period}개월 / ${inputs.tbm_interval}개월) × ${inputs.num_components}개 = ${replacements.toLocaleString()}회</p>
+                            <p class="font-mono text-sm">floor(${inputs.simulation_period}개월 / ${inputs.tbm_interval}개월) × ${inputs.num_components}개 = ${replacements.toLocaleString()}회</p>
                         </div>
                         <div class="calc-step">
                             <p><strong>2. 총 비용:</strong></p>
@@ -275,7 +432,7 @@
                 } else if (type === 'wasted') {
                     title = '잔존 수명 폐기 비용 (TBM 기준)';
                     const wasted_life = inputs.eta - inputs.tbm_interval;
-                    const wasted_value = inputs.c_part * (wasted_life / inputs.eta);
+                    const wasted_value = wasted_life > 0 ? inputs.c_part * (wasted_life / inputs.eta) : 0;
                     const replacements = Math.floor(inputs.simulation_period / inputs.tbm_interval) * inputs.num_components;
                     const total_wasted_cost = wasted_value * replacements;
                     contentHTML = `

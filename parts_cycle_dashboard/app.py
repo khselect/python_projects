@@ -1,6 +1,7 @@
 import os
 import random
 import math
+import numpy as np
 from collections import Counter
 from datetime import datetime, date, timedelta
 
@@ -8,6 +9,22 @@ from flask import Flask, render_template, request, redirect, url_for, jsonify
 from flask_sqlalchemy import SQLAlchemy
 
 from analysis import perform_weibull_analysis
+
+# 시나리오 프리셋 (필요 시 수치 조정)
+SCENARIOS = {
+    "A": {  # 기본 TBM vs 보수적 PdM
+        "tbm_interval_months": 12,   # TBM 교체 주기(월)
+        "tbm_failure_prob": 0.05,    # TBM 주기 내 기대 고장비율
+        "pdm_beta": 1.8,             # PdM Weibull 형상
+        "pdm_eta_months": 18         # PdM Weibull 척도(월)
+    },
+    "B": {  # 절감 목표(예: ~20%) 가정 강화
+        "tbm_interval_months": 12,
+        "tbm_failure_prob": 0.05,
+        "pdm_beta": 2.0,
+        "pdm_eta_months": 20
+    }
+}
 
 # --- 기본 설정 ---
 base_dir = os.path.abspath(os.path.dirname(__file__))
@@ -297,44 +314,10 @@ def budget_forecast():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# ⭐️ 신규 기능: 교체 우선순위 부품 추천 API ⭐️
 # @app.route('/api/recommendations/replacement_priority')
 # def replacement_priority():
-#     # 1. 부품별 고장 횟수 계산
-#     failed_parts = [data.part_id for data in PumpData.query.filter_by(is_failure=True).all()]
-#     failure_counts = Counter(failed_parts)
-    
-#     # 2. 부품별 최고 중요도 확인
-#     part_priorities = {}
-#     priority_map = {'높음': 3, '중간': 2, '낮음': 1}
-    
-#     all_parts = db.session.query(PumpData.part_id, PumpData.priority).distinct().all()
-#     for part_id, priority in all_parts:
-#         # 가장 높은 중요도를 해당 부품의 대표 중요도로 설정
-#         current_priority_score = priority_map.get(priority, 0)
-#         if part_id not in part_priorities or current_priority_score > part_priorities[part_id]['score']:
-#             part_priorities[part_id] = {'text': priority, 'score': current_priority_score}
+#     # ... (내용 동일)
 
-#     # 3. 고장 빈도와 중요도를 조합하여 우선순위 점수 계산
-#     recommendations = []
-#     for part_id, failure_count in failure_counts.items():
-#         priority_info = part_priorities.get(part_id, {'text': 'N/A', 'score': 0})
-#         # 점수 = 고장횟수 * 중요도 가중치
-#         priority_score = failure_count * priority_info['score']
-        
-#         recommendations.append({
-#             'part_id': part_id,
-#             'failure_count': failure_count,
-#             'priority': priority_info['text'],
-#             'score': priority_score
-#         })
-        
-#     # 최종 점수가 높은 순으로 정렬
-#     recommendations.sort(key=lambda x: x['score'], reverse=True)
-    
-#     return jsonify(recommendations)
-
-# ⭐️ 통합된 예방 정비 우선순위 API ⭐️
 @app.route('/api/priority_maintenance')
 def priority_maintenance():
     try:
@@ -386,83 +369,119 @@ def priority_maintenance():
 # --- 시뮬레이터 페이지 라우트 ---
 @app.route('/simulator')
 def simulator_page():
-    """유지보수 전략 비용 시뮬레이터 페이지를 렌더링합니다."""
-    # base.html을 상속받으므로, base.html에 필요한 변수가 있다면 전달해야 합니다.
-    # 예를 들어, 모든 부품 목록이 필요하다면 여기서 조회해서 전달할 수 있습니다.
     return render_template('simulator.html')
+
+# --- 시뮬레이터 타임라인 라우트 ---
+def build_timeseries(params: dict, preset: dict):
+    # 1) 입력 파라미터
+    months   = int(params.get("simulation_period", 60))
+    n_parts  = int(params.get("num_components", 100))
+    eta_m    = float(params.get("eta", preset["pdm_eta_months"]))
+
+    c_part   = float(params.get("c_part", 500_000))
+    c_plan   = float(params.get("c_planned_labor", 100_000))
+    c_unplan = float(params.get("c_unplanned_labor", 300_000))
+    c_dt     = float(params.get("c_downtime", 1_000_000))
+    mttr     = float(params.get("mttr", 4))
+
+    tbm_interval  = int(params.get("tbm_interval", preset["tbm_interval_months"]))
+    tbm_fail_prob = float(params.get("tbm_failure_prob", preset["tbm_failure_prob"]))
+    
+    b10_life = float(params.get("b10_life", 16))
+    beta     = float(params.get("beta", preset["pdm_beta"]))
+
+    # 2) 월별 집계
+    timeline = []
+    
+    # TBM 비용요소
+    tbm_replacements_total = 0
+    tbm_failures_total = 0
+    tbm_planned_cost_total = 0
+    tbm_failure_cost_total = 0
+    
+    # PdM 비용요소
+    pdm_replacements_total = 0
+    pdm_failures_total = 0
+    pdm_planned_cost_total = 0
+    pdm_failure_cost_total = 0
+
+    # 와이블 분포 기반 수명 샘플링 (PdM용)
+    rng = np.random.default_rng(42)
+    lifetimes = rng.weibull(beta, size=n_parts) * eta_m
+
+    for m in range(1, months + 1):
+        # --- TBM 계산 ---
+        tbm_repl_monthly = n_parts if (m > 0 and m % tbm_interval == 0) else 0
+        tbm_fail_monthly = int(round(tbm_repl_monthly * tbm_fail_prob))
+        
+        planned_cost_monthly = tbm_repl_monthly * (c_part + c_plan)
+        failure_cost_monthly = tbm_fail_monthly * (c_part + c_unplan + c_dt * mttr)
+        tbm_cost = planned_cost_monthly + failure_cost_monthly
+        
+        tbm_replacements_total += tbm_repl_monthly
+        tbm_failures_total += tbm_fail_monthly
+        tbm_planned_cost_total += planned_cost_monthly
+        tbm_failure_cost_total += failure_cost_monthly
+        
+        # --- PdM 계산 ---
+        # (m-1, m] 구간에서 수명이 종료된 부품 수
+        pdm_repl_monthly = int(np.sum((lifetimes > (m - 1)) & (lifetimes <= m)))
+        # B10 정의에 따라 10%는 조기 고장난다고 가정
+        pdm_fail_monthly = int(round(pdm_repl_monthly * 0.1)) 
+        pdm_repl_planned = pdm_repl_monthly - pdm_fail_monthly
+
+        pdm_planned_cost_monthly = pdm_repl_planned * (c_part + c_plan)
+        pdm_failure_cost_monthly_ = pdm_fail_monthly * (c_part + c_unplan + c_dt * mttr)
+        pdm_cost = pdm_planned_cost_monthly + pdm_failure_cost_monthly_
+        
+        pdm_replacements_total += pdm_repl_monthly
+        pdm_failures_total += pdm_fail_monthly
+        pdm_planned_cost_total += pdm_planned_cost_monthly
+        pdm_failure_cost_total += pdm_failure_cost_monthly_
+
+        timeline.append({
+            "month": m,
+            "tbm_replacements": tbm_repl_monthly, "tbm_failures": tbm_fail_monthly, "tbm_cost": tbm_cost,
+            "pdm_replacements": pdm_repl_monthly, "pdm_failures": pdm_fail_monthly, "pdm_cost": pdm_cost
+        })
+
+    # --- 최종 결과 집계 ---
+    wasted_life = eta_m - tbm_interval
+    tbm_wasted_life_cost = (tbm_replacements_total * c_part * (wasted_life / eta_m)) if wasted_life > 0 and eta_m > 0 else 0
+
+    tbm_totals = {
+        "total_cost": tbm_planned_cost_total + tbm_failure_cost_total + tbm_wasted_life_cost,
+        "planned_cost": tbm_planned_cost_total,
+        "wasted_life_cost": tbm_wasted_life_cost,
+        "failure_cost": tbm_failure_cost_total,
+        "total_replacements": tbm_replacements_total,
+    }
+    pdm_totals = {
+        "total_cost": pdm_planned_cost_total + pdm_failure_cost_total,
+        "planned_cost": pdm_planned_cost_total,
+        "wasted_life_cost": 0, # PdM은 잔존수명 폐기 비용 0
+        "failure_cost": pdm_failure_cost_total,
+        "total_replacements": pdm_replacements_total,
+    }
+    return timeline, tbm_totals, pdm_totals
+
 
 # --- 시뮬레이션 API 라우트 ---
 @app.route('/api/simulate', methods=['POST'])
 def run_simulation():
-    """
-    입력값을 받아 TBM과 PdM 시나리오를 시뮬레이션하고 결과를 JSON으로 반환합니다.
-    이 함수는 maintenance_simulator 프로젝트의 로직과 동일합니다.
-    """
     params = request.get_json()
+    scenario_key = (request.args.get("scenario") or params.get("scenario") or "A").upper()
+    preset = SCENARIOS.get(scenario_key, SCENARIOS["A"])
 
-    # --- 입력 변수 (입력값 또는 기본값) ---
-    simulation_period = params.get('simulation_period', 60)
-    num_components = params.get('num_components', 100)
-    c_part = params.get('c_part', 500000)
-    c_planned_labor = params.get('c_planned_labor', 100000)
-    c_unplanned_labor = params.get('c_unplanned_labor', 300000)
-    c_downtime = params.get('c_downtime', 1000000)
-    mttr = params.get('mttr', 4)
-    eta = params.get('eta', 18)
-    b10_life = params.get('b10_life', 16)
-    tbm_interval = params.get('tbm_interval', 12)
-    tbm_failure_prob = params.get('tbm_failure_prob', 0.05)
-
-    # --- 공통 계산: 고장 1회당 총 손실 비용 ---
-    cost_per_failure = c_part + c_unplanned_labor + (c_downtime * mttr)
-
-    # --- 시나리오 A: 주기정비 (TBM) 비용 계산 ---
-    tbm_results = {}
-    if tbm_interval > 0:
-        # 총 교체 횟수
-        replacements_per_comp = math.floor(simulation_period / tbm_interval)
-        total_replacements = replacements_per_comp * num_components
-        
-        # 계획 교체 비용
-        tbm_results['planned_cost'] = total_replacements * (c_part + c_planned_labor)
-        
-        # 잔존 수명 폐기 비용
-        wasted_life = eta - tbm_interval
-        tbm_results['wasted_life_cost'] = (total_replacements * c_part * (wasted_life / eta)) if wasted_life > 0 and eta > 0 else 0
-        
-        # 주기 내 고장 비용
-        num_failures = total_replacements * tbm_failure_prob
-        tbm_results['failure_cost'] = num_failures * cost_per_failure
-        
-        # TBM 총 비용
-        tbm_results['total_cost'] = tbm_results['planned_cost'] + tbm_results['wasted_life_cost'] + tbm_results['failure_cost']
-        tbm_results['total_replacements'] = total_replacements
-    else:
-        tbm_results = {'total_cost': 0, 'planned_cost': 0, 'wasted_life_cost': 0, 'failure_cost': 0, 'total_replacements': 0}
-
-    # --- 시나리오 B: 예측정비 (PdM) 비용 계산 ---
-    pdm_results = {}
-    if b10_life > 0:
-        # 총 교체 횟수 (B10 주기에 따름)
-        replacements_per_comp = simulation_period / b10_life
-        total_replacements = replacements_per_comp * num_components
-        
-        # 계획 교체 비용 (90%는 계획대로 교체)
-        pdm_results['planned_cost'] = (total_replacements * 0.9) * (c_part + c_planned_labor)
-        
-        # 조기 고장 비용 (10%는 B10 이전에 고장)
-        pdm_results['failure_cost'] = (total_replacements * 0.1) * cost_per_failure
-        
-        # PdM에서는 잔존 수명 폐기 비용이 발생하지 않음
-        pdm_results['wasted_life_cost'] = 0
-        
-        # PdM 총 비용
-        pdm_results['total_cost'] = pdm_results['planned_cost'] + pdm_results['failure_cost']
-        pdm_results['total_replacements'] = total_replacements
-    else:
-        pdm_results = {'total_cost': 0, 'planned_cost': 0, 'wasted_life_cost': 0, 'failure_cost': 0, 'total_replacements': 0}
-
-    return jsonify({'tbm': tbm_results, 'pdm': pdm_results})
+    # ⭐️ 수정: build_timeseries 함수를 호출하여 모든 계산을 한 번에 처리
+    timeseries, tbm_results, pdm_results = build_timeseries(params, preset)
+    
+    return jsonify({
+        'scenario': scenario_key,
+        'tbm': tbm_results,
+        'pdm': pdm_results,
+        'timeseries': timeseries
+    })
 
 # --- 가상 데이터 생성을 위한 헬퍼 함수 ---
 def _generate_fake_data(num_records=150):
@@ -500,7 +519,6 @@ def _generate_fake_data(num_records=150):
            removal_date = install_date + timedelta(days=lifespan)
            if removal_date > end_date_obj: removal_date = end_date_obj
 
-        # ⭐️ 문제 해결: 생성된 모든 변수를 PumpData 객체에 전달 ⭐️
         new_data = PumpData(
             part_id=part_id,
             serial_number=serial_number,
