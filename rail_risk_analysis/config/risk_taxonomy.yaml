@@ -1,0 +1,2 @@
+version: 1
+accident_types: [none, near_miss, operation_disruption, collision, derailment]

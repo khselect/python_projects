@@ -1,356 +1,522 @@
 <!DOCTYPE html>
 <html lang="ko" class="scroll-smooth">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>부품 수명분석 및 예방정비 프로그램 | 인포그래픽</title>
+
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap"
+      rel="stylesheet"
+    />
     <style>
-        body {
-            font-family: 'Noto Sans KR', sans-serif;
-            background-color: #F8F9FA;
-            color: #2F4858;
-        }
-        .kpi-number {
-            font-weight: 900;
-            color: #F26419;
-        }
-        .section-title {
-            font-weight: 900;
-            color: #33658A;
-        }
-        .card {
-            background-color: white;
-            border-radius: 0.75rem;
-            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-        .card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -2px rgb(0 0 0 / 0.1);
-        }
+      body {
+        font-family: "Noto Sans KR", sans-serif;
+        background-color: #f8f9fa;
+        color: #2f4858;
+      }
+      .kpi-number {
+        font-weight: 900;
+        color: #f26419;
+      }
+      .section-title {
+        font-weight: 900;
+        color: #33658a;
+      }
+      .card {
+        background-color: white;
+        border-radius: 0.75rem;
+        box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1),
+          0 2px 4px -2px rgb(0 0 0 / 0.1);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+      }
+      .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1),
+          0 4px 6px -2px rgb(0 0 0 / 0.1);
+      }
+      .chart-container {
+        position: relative;
+        width: 100%;
+        max-width: 800px;
+        margin-left: auto;
+        margin-right: auto;
+        height: 320px;
+        max-height: 50vh;
+      }
+      @media (min-width: 768px) {
         .chart-container {
-            position: relative;
-            width: 100%;
-            max-width: 800px;
-            margin-left: auto;
-            margin-right: auto;
-            height: 320px;
-            max-height: 50vh;
+          height: 400px;
         }
-        @media (min-width: 768px) {
-            .chart-container {
-                height: 400px;
-            }
-        }
-        .tech-card {
-            border-left: 4px solid #F6AE2D;
-        }
-        .flow-arrow {
-            font-size: 2rem;
-            color: #55DDE0;
-        }
-        .timeline-item::before {
-            content: '';
-            position: absolute;
-            left: -30px;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            background-color: #55DDE0;
-            border: 3px solid white;
-        }
-        .timeline-line {
-            position: absolute;
-            left: -21px;
-            top: 0;
-            bottom: 0;
-            width: 2px;
-            background-color: #E5E7EB;
-        }
+      }
+      .tech-card {
+        border-left: 4px solid #f6ae2d;
+      }
+      .flow-arrow {
+        font-size: 2rem;
+        color: #55dde0;
+      }
+      .timeline-item::before {
+        content: "";
+        position: absolute;
+        left: -30px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background-color: #55dde0;
+        border: 3px solid white;
+      }
+      .timeline-line {
+        position: absolute;
+        left: -21px;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background-color: #e5e7eb;
+      }
     </style>
-</head>
-<body class="antialiased">
+  </head>
+
+  <body class="antialiased">
     <header class="text-center py-16 md:py-24 px-4 bg-white">
-        <div class="max-w-4xl mx-auto">
-            <h1 class="text-4xl md:text-6xl font-black text-gray-800 leading-tight">
-                <span class="bg-clip-text text-transparent bg-gradient-to-r from-[#33658A] to-[#55DDE0]">부품 수명분석</span> 및 <span class="bg-clip-text text-transparent bg-gradient-to-r from-[#F26419] to-[#F6AE2D]">예방정비</span> 프로그램
-            </h1>
-            <p class="mt-4 text-lg md:text-xl text-gray-600">데이터 기반 의사결정으로 예지보전(PdM)을 실현하고 설비 안정성을 극대화합니다.</p>
-            <a href="/" class="btn btn-outline-secondary">【메인으로 돌아가기↵】</a>
-        </div>
+      <div class="max-w-4xl mx-auto">
+        <h1 class="text-4xl md:text-6xl font-black text-gray-800 leading-tight">
+          <span
+            class="bg-clip-text text-transparent bg-gradient-to-r from-[#33658A] to-[#55DDE0]"
+            >부품 수명분석</span
+          >
+          및
+          <span
+            class="bg-clip-text text-transparent bg-gradient-to-r from-[#F26419] to-[#F6AE2D]"
+            >예방정비</span
+          >
+          프로그램
+        </h1>
+        <p class="mt-4 text-lg md:text-xl text-gray-600">
+          데이터 기반 의사결정으로 예지보전(PdM)을 실현하고 설비 안정성을
+          극대화합니다.
+        </p>
+        {#
+        <a href="/" class="btn btn-outline-secondary">【메인으로 돌아가기↵】</a>
+        #}
+      </div>
     </header>
+
+    {% include '_navigation.html' %}
+
     <main class="container mx-auto p-4 md:p-8">
-        <section id="overview" class="my-12 md:my-16">
-            <h2 class="section-title text-3xl md:text-4xl text-center mb-12">프로젝트 개요: 왜 필요한가?</h2>
-            <div class="grid md:grid-cols-3 gap-8 text-center">
-                <div class="card p-8">
-                    <div class="text-5xl mb-4">💰</div>
-                    <h3 class="text-xl font-bold mb-2 text-[#33658A]">예산 효율화</h3>
-                    <p class="text-gray-600">불필요한 재고를 줄이고, 고장 예측을 통해 정확한 예산 계획을 수립합니다.</p>
-                </div>
-                <div class="card p-8">
-                    <div class="text-5xl mb-4">📈</div>
-                    <h3 class="text-xl font-bold mb-2 text-[#33658A]">업무 효율 증대</h3>
-                    <p class="text-gray-600">교체 우선순위를 명확히 하여 한정된 인력과 시간을 가장 중요한 곳에 집중시킵니다.</p>
-                </div>
-                <div class="card p-8">
-                    <div class="text-5xl mb-4">🛡️</div>
-                    <h3 class="text-xl font-bold mb-2 text-[#33658A]">설비 안정성 향상</h3>
-                    <p class="text-gray-600">잠재적 고장 위험을 사전에 식별하여 비계획 가동 중지 시간을 최소화합니다.</p>
-                </div>
+      <section id="overview" class="my-12 md:my-16">
+        <h2 class="section-title text-3xl md:text-4xl text-center mb-12">
+          프로젝트 개요: 왜 필요한가?
+        </h2>
+        <div class="grid md:grid-cols-3 gap-8 text-center">
+          <div class="card p-8">
+            <div class="text-5xl mb-4">💰</div>
+            <h3 class="text-xl font-bold mb-2 text-[#33658A]">예산 효율화</h3>
+            <p class="text-gray-600">
+              불필요한 재고를 줄이고, 고장 예측을 통해 정확한 예산 계획을
+              수립합니다.
+            </p>
+          </div>
+          <div class="card p-8">
+            <div class="text-5xl mb-4">📈</div>
+            <h3 class="text-xl font-bold mb-2 text-[#33658A]">
+              업무 효율 증대
+            </h3>
+            <p class="text-gray-600">
+              교체 우선순위를 명확히 하여 한정된 인력과 시간을 가장 중요한 곳에
+              집중시킵니다.
+            </p>
+          </div>
+          <div class="card p-8">
+            <div class="text-5xl mb-4">🛡️</div>
+            <h3 class="text-xl font-bold mb-2 text-[#33658A]">
+              설비 안정성 향상
+            </h3>
+            <p class="text-gray-600">
+              잠재적 고장 위험을 사전에 식별하여 비계획 가동 중지 시간을
+              최소화합니다.
+            </p>
+          </div>
+        </div>
+      </section>
+      <section id="architecture" class="my-12 md:my-16">
+        <h2 class="section-title text-3xl md:text-4xl text-center mb-12">
+          시스템 아키텍처: 데이터의 흐름
+        </h2>
+        <div class="card p-8">
+          <div
+            class="flex flex-col md:flex-row items-center justify-around text-center"
+          >
+            <div class="p-4">
+              <div class="text-4xl">🖥️</div>
+              <h3 class="font-bold mt-2">사용자</h3>
+              <p class="text-sm text-gray-500">데이터 입력/조회</p>
             </div>
-        </section>
-        <section id="architecture" class="my-12 md:my-16">
-            <h2 class="section-title text-3xl md:text-4xl text-center mb-12">시스템 아키텍처: 데이터의 흐름</h2>
-            <div class="card p-8">
-                <div class="flex flex-col md:flex-row items-center justify-around text-center">
-                    <div class="p-4">
-                        <div class="text-4xl">🖥️</div>
-                        <h3 class="font-bold mt-2">사용자</h3>
-                        <p class="text-sm text-gray-500">데이터 입력/조회</p>
-                    </div>
-                    <div class="flow-arrow mx-4 my-2 md:my-0 transform md:rotate-0 rotate-90">&rarr;</div>
-                    <div class="p-4">
-                        <div class="text-4xl">🌐</div>
-                        <h3 class="font-bold mt-2">프론트엔드</h3>
-                        <p class="text-sm text-gray-500">HTML, JS, Chart.js</p>
-                    </div>
-                    <div class="flow-arrow mx-4 my-2 md:my-0 transform md:rotate-0 rotate-90">&rarr;</div>
-                    <div class="p-4">
-                        <div class="text-4xl">⚙️</div>
-                        <h3 class="font-bold mt-2">백엔드</h3>
-                        <p class="text-sm text-gray-500">Python, Flask</p>
-                    </div>
-                    <div class="flow-arrow mx-4 my-2 md:my-0 transform md:rotate-0 rotate-90">&rarr;</div>
-                    <div class="p-4">
-                        <div class="text-4xl">🗃️</div>
-                        <h3 class="font-bold mt-2">데이터베이스</h3>
-                        <p class="text-sm text-gray-500">SQLite</p>
-                    </div>
-                </div>
+            <div
+              class="flow-arrow mx-4 my-2 md:my-0 transform md:rotate-0 rotate-90"
+            >
+              &rarr;
             </div>
-        </section>
-        <section id="analysis" class="my-12 md:my-16">
-            <h2 class="section-title text-3xl md:text-4xl text-center mb-12">핵심 분석 엔진: 신뢰성 분석</h2>
-            <div class="grid md:grid-cols-3 gap-8 items-center">
-                <div class="md:col-span-2 card p-8">
-                    <h3 class="text-xl font-bold mb-4 text-center text-[#33658A]">부품별 생존 곡선 (와이블 분석)</h3>
-                    <div class="chart-container">
-                        <canvas id="survivalCurveChart"></canvas>
-                    </div>
-                </div>
-                <div class="space-y-6">
-                    <div class="card p-6 text-center">
-                        <h4 class="font-bold text-gray-500">형상모수 (β)</h4>
-                        <p class="kpi-number text-4xl">2.15</p>
-                        <p class="text-sm text-gray-600">마모 고장 패턴</p>
-                    </div>
-                    <div class="card p-6 text-center">
-                        <h4 class="font-bold text-gray-500">B10 수명</h4>
-                        <p class="kpi-number text-4xl">8,760 <span class="text-2xl text-gray-500">시간</span></p>
-                        <p class="text-sm text-gray-600">10% 고장 예측 시점</p>
-                    </div>
-                </div>
+            <div class="p-4">
+              <div class="text-4xl">🌐</div>
+              <h3 class="font-bold mt-2">프론트엔드</h3>
+              <p class="text-sm text-gray-500">HTML, JS, Chart.js</p>
             </div>
-        </section>
-        <section id="kpi" class="my-12 md:my-16">
-            <h2 class="section-title text-3xl md:text-4xl text-center mb-12">핵심성과지표: KPI(Key Performance Indicator) 대시보드</h2>
-            <div class="grid md:grid-cols-2 gap-8">
-                <div class="card p-8">
-                    <h3 class="text-xl font-bold mb-4 text-center text-[#33658A]">부품 분포 비율</h3>
-                    <div class="chart-container h-80 md:h-96">
-                        <canvas id="partDistributionChart"></canvas>
-                    </div>
-                </div>
-                <div class="card p-8">
-                    <h3 class="text-xl font-bold mb-4 text-center text-[#33658A]">고장 부품 순위 (Top 5)</h3>
-                    <div class="chart-container h-80 md:h-96">
-                        <canvas id="failureRankingChart"></canvas>
-                    </div>
-                </div>
+            <div
+              class="flow-arrow mx-4 my-2 md:my-0 transform md:rotate-0 rotate-90"
+            >
+              &rarr;
             </div>
-        </section>
-        <section id="decision" class="my-12 md:my-16">
-            <h2 class="section-title text-3xl md:text-4xl text-center mb-12">Insight to Action: 의사결정 지원</h2>
-            <div class="grid md:grid-cols-3 gap-8">
-                <div class="md:col-span-1 card p-8 flex flex-col justify-center text-center bg-[#33658A] text-white">
-                    <h3 class="text-xl font-bold mb-2">향후 90일 예산 예측</h3>
-                    <p class="text-4xl font-black text-[#F6AE2D]">₩12,500,000</p>
-                    <p class="mt-2 text-gray-300">교체 예상 부품: 8개</p>
-                </div>
-                <div class="md:col-span-2 card p-8">
-                    <h3 class="text-xl font-bold mb-4 text-[#33658A]">예방 정비 우선순위 Top 5</h3>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left">
-                            <thead class="border-b-2 border-gray-200">
-                                <tr>
-                                    <th class="p-2 font-bold">순위</th>
-                                    <th class="p-2 font-bold">부품 (S/N)</th>
-                                    <th class="p-2 font-bold">중요도</th>
-                                    <th class="p-2 font-bold">위험 점수</th>
-                                </tr>
-                            </thead>
-                            <tbody id="pm-priority-table">
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+            <div class="p-4">
+              <div class="text-4xl">⚙️</div>
+              <h3 class="font-bold mt-2">백엔드</h3>
+              <p class="text-sm text-gray-500">Python, Flask</p>
             </div>
-        </section>
-        <section id="tech" class="my-12 md:my-16">
-            <h2 class="section-title text-3xl md:text-4xl text-center mb-12">기술 스택</h2>
-            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6 text-center">
-                <div class="tech-card p-4 rounded-lg bg-white"><p class="font-bold">Python</p></div>
-                <div class="tech-card p-4 rounded-lg bg-white"><p class="font-bold">Flask</p></div>
-                <div class="tech-card p-4 rounded-lg bg-white"><p class="font-bold">SQLAlchemy</p></div>
-                <div class="tech-card p-4 rounded-lg bg-white"><p class="font-bold">JavaScript</p></div>
-                <div class="tech-card p-4 rounded-lg bg-white"><p class="font-bold">Bootstrap</p></div>
-                <div class="tech-card p-4 rounded-lg bg-white"><p class="font-bold">Chart.js</p></div>
+            <div
+              class="flow-arrow mx-4 my-2 md:my-0 transform md:rotate-0 rotate-90"
+            >
+              &rarr;
             </div>
-        </section>
-        <section id="future" class="my-12 md:my-16">
-            <h2 class="section-title text-3xl md:text-4xl text-center mb-12">향후 발전 계획</h2>
-            <div class="max-w-2xl mx-auto relative pl-8">
-                <div class="timeline-line"></div>
-                <div class="timeline-item relative mb-8 card p-6">
-                    <h3 class="font-bold text-lg text-[#33658A]">운영 환경별 분석</h3>
-                    <p class="text-gray-600">고온, 다습, 고진동 등 특정 환경이 부품 수명에 미치는 영향을 정량적으로 분석합니다.</p>
-                </div>
-                <div class="timeline-item relative mb-8 card p-6">
-                    <h3 class="font-bold text-lg text-[#33658A]">재고 관리 연동</h3>
-                    <p class="text-gray-600">예측된 교체 수요를 기반으로 필요 재고를 산출하고, 자동 발주 추천 기능을 구현합니다.</p>
-                </div>
-                <div class="timeline-item relative card p-6">
-                    <h3 class="font-bold text-lg text-[#33658A]">자동 알림 기능</h3>
-                    <p class="text-gray-600">'점검 대상 부품' 발생 시 담당자에게 이메일 또는 메신저 알림을 발송합니다.</p>
-                </div>
+            <div class="p-4">
+              <div class="text-4xl">🗃️</div>
+              <h3 class="font-bold mt-2">데이터베이스</h3>
+              <p class="text-sm text-gray-500">SQLite</p>
             </div>
-        </section>
+          </div>
+        </div>
+      </section>
+      <section id="analysis" class="my-12 md:my-16">
+        <h2 class="section-title text-3xl md:text-4xl text-center mb-12">
+          핵심 분석 엔진: 신뢰성 분석
+        </h2>
+        <div class="grid md:grid-cols-3 gap-8 items-center">
+          <div class="md:col-span-2 card p-8">
+            <h3 class="text-xl font-bold mb-4 text-center text-[#33658A]">
+              부품별 생존 곡선 (와이블 분석)
+            </h3>
+            <div class="chart-container">
+              <canvas id="survivalCurveChart"></canvas>
+            </div>
+          </div>
+          <div class="space-y-6">
+            <div class="card p-6 text-center">
+              <h4 class="font-bold text-gray-500">형상모수 (β)</h4>
+              <p class="kpi-number text-4xl">2.15</p>
+              <p class="text-sm text-gray-600">마모 고장 패턴</p>
+            </div>
+            <div class="card p-6 text-center">
+              <h4 class="font-bold text-gray-500">B10 수명</h4>
+              <p class="kpi-number text-4xl">
+                8,760 <span class="text-2xl text-gray-500">시간</span>
+              </p>
+              <p class="text-sm text-gray-600">10% 고장 예측 시점</p>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section id="kpi" class="my-12 md:my-16">
+        <h2 class="section-title text-3xl md:text-4xl text-center mb-12">
+          핵심성과지표: KPI(Key Performance Indicator) 대시보드
+        </h2>
+        <div class="grid md:grid-cols-2 gap-8">
+          <div class="card p-8">
+            <h3 class="text-xl font-bold mb-4 text-center text-[#33658A]">
+              부품 분포 비율
+            </h3>
+            <div class="chart-container h-80 md:h-96">
+              <canvas id="partDistributionChart"></canvas>
+            </div>
+          </div>
+          <div class="card p-8">
+            <h3 class="text-xl font-bold mb-4 text-center text-[#33658A]">
+              고장 부품 순위 (Top 5)
+            </h3>
+            <div class="chart-container h-80 md:h-96">
+              <canvas id="failureRankingChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section id="decision" class="my-12 md:my-16">
+        <h2 class="section-title text-3xl md:text-4xl text-center mb-12">
+          Insight to Action: 의사결정 지원
+        </h2>
+        <div class="grid md:grid-cols-3 gap-8">
+          <div
+            class="md:col-span-1 card p-8 flex flex-col justify-center text-center bg-[#33658A] text-white"
+          >
+            <h3 class="text-xl font-bold mb-2">향후 90일 예산 예측</h3>
+            <p class="text-4xl font-black text-[#F6AE2D]">₩12,500,000</p>
+            <p class="mt-2 text-gray-300">교체 예상 부품: 8개</p>
+          </div>
+          <div class="md:col-span-2 card p-8">
+            <h3 class="text-xl font-bold mb-4 text-[#33658A]">
+              예방 정비 우선순위 Top 5
+            </h3>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left">
+                <thead class="border-b-2 border-gray-200">
+                  <tr>
+                    <th class="p-2 font-bold">순위</th>
+                    <th class="p-2 font-bold">부품 (S/N)</th>
+                    <th class="p-2 font-bold">중요도</th>
+                    <th class="p-2 font-bold">위험 점수</th>
+                  </tr>
+                </thead>
+                <tbody id="pm-priority-table"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section id="tech" class="my-12 md:my-16">
+        <h2 class="section-title text-3xl md:text-4xl text-center mb-12">
+          기술 스택
+        </h2>
+        <div
+          class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6 text-center"
+        >
+          <div class="tech-card p-4 rounded-lg bg-white">
+            <p class="font-bold">Python</p>
+          </div>
+          <div class="tech-card p-4 rounded-lg bg-white">
+            <p class="font-bold">Flask</p>
+          </div>
+          <div class="tech-card p-4 rounded-lg bg-white">
+            <p class="font-bold">SQLAlchemy</p>
+          </div>
+          <div class="tech-card p-4 rounded-lg bg-white">
+            <p class="font-bold">JavaScript</p>
+          </div>
+          <div class="tech-card p-4 rounded-lg bg-white">
+            <p class="font-bold">Bootstrap</p>
+          </div>
+          <div class="tech-card p-4 rounded-lg bg-white">
+            <p class="font-bold">Chart.js</p>
+          </div>
+        </div>
+      </section>
+      <section id="future" class="my-12 md:my-16">
+        <h2 class="section-title text-3xl md:text-4xl text-center mb-12">
+          향후 발전 계획
+        </h2>
+        <div class="max-w-2xl mx-auto relative pl-8">
+          <div class="timeline-line"></div>
+          <div class="timeline-item relative mb-8 card p-6">
+            <h3 class="font-bold text-lg text-[#33658A]">운영 환경별 분석</h3>
+            <p class="text-gray-600">
+              고온, 다습, 고진동 등 특정 환경이 부품 수명에 미치는 영향을
+              정량적으로 분석합니다.
+            </p>
+          </div>
+          <div class="timeline-item relative mb-8 card p-6">
+            <h3 class="font-bold text-lg text-[#33658A]">재고 관리 연동</h3>
+            <p class="text-gray-600">
+              예측된 교체 수요를 기반으로 필요 재고를 산출하고, 자동 발주 추천
+              기능을 구현합니다.
+            </p>
+          </div>
+          <div class="timeline-item relative card p-6">
+            <h3 class="font-bold text-lg text-[#33658A]">자동 알림 기능</h3>
+            <p class="text-gray-600">
+              '점검 대상 부품' 발생 시 담당자에게 이메일 또는 메신저 알림을
+              발송합니다.
+            </p>
+          </div>
+        </div>
+      </section>
     </main>
     <footer class="text-center py-8 bg-white mt-16">
-        <p class="text-gray-600">부품 수명 분석 및 예방 정비 대시보드 | 2025</p>
+      <p class="text-gray-600">부품 수명 분석 및 예방 정비 대시보드 | 2025</p>
     </footer>
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const defaultTooltipCallback = {
-                plugins: {
-                    tooltip: {
-                        callbacks: {
-                            title: function(tooltipItems) {
-                                const item = tooltipItems[0];
-                                let label = item.chart.data.labels[item.dataIndex];
-                                if (Array.isArray(label)) {
-                                  return label.join(' ');
-                                } else {
-                                  return label;
-                                }
-                            }
-                        }
-                    }
-                }
-            };
-            const renderSurvivalCurveChart = () => {
-                const ctx = document.getElementById('survivalCurveChart')?.getContext('2d');
-                if (!ctx) return;
-                new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: Array.from({ length: 25 }, (_, i) => i * 1000),
-                        datasets: [{
-                            label: '생존 확률',
-                            data: [1, 0.99, 0.98, 0.97, 0.95, 0.92, 0.88, 0.85, 0.80, 0.75, 0.68, 0.63, 0.58, 0.52, 0.46, 0.40, 0.35, 0.30, 0.25, 0.20, 0.16, 0.12, 0.09, 0.06, 0.04],
-                            borderColor: '#F26419',
-                            backgroundColor: 'rgba(242, 100, 25, 0.1)',
-                            fill: true,
-                            tension: 0.4
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            x: { title: { display: true, text: '운영 시간 (Hours)' } },
-                            y: { title: { display: true, text: '생존 확률 (R(t))' }, min: 0, max: 1 }
-                        },
-                        ...defaultTooltipCallback
-                    }
-                });
-            };
-            const renderPartDistributionChart = () => {
-                const ctx = document.getElementById('partDistributionChart')?.getContext('2d');
-                if (!ctx) return;
-                new Chart(ctx, {
-                    type: 'doughnut',
-                    data: {
-                        labels: ['EPR2A', 'TIDK', 'TICC', '엔코더', 'DCU'],
-                        datasets: [{
-                            label: '부품 분포',
-                            data: [35, 25, 18, 15, 7],
-                            backgroundColor: ['#33658A', '#F6AE2D', '#55DDE0', '#2F4858', '#999999'],
-                            borderColor: '#ffffff',
-                            borderWidth: 2,
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: { position: 'bottom' },
-                            ...defaultTooltipCallback.plugins
-                        }
-                    }
-                });
-            };
-            const renderFailureRankingChart = () => {
-                const ctx = document.getElementById('failureRankingChart')?.getContext('2d');
-                if (!ctx) return;
-                new Chart(ctx, {
-                    type: 'bar',
-                    data: {
-                        labels: ['EPR2A', 'TIDK', 'TICC', '엔코더', 'DCU'],
-                        datasets: [{
-                            label: '고장 횟수',
-                            data: [22, 18, 11, 8, 5],
-                            backgroundColor: ['#F26419', '#F6AE2D', '#33658A', '#55DDE0', '#2F4858'],
-                        }]
-                    },
-                    options: {
-                        indexAxis: 'y',
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: { display: false },
-                            ...defaultTooltipCallback.plugins
-                        },
-                        scales: {
-                            x: { title: { display: true, text: '고장 횟수' } }
-                        }
-                    }
-                });
-            };
-            const populatePmPriorityTable = () => {
-                const tableBody = document.getElementById('pm-priority-table');
-                if (!tableBody) return;
-                const data = [
-                    { rank: 1, part: 'EPR2A', sn: 'SN-1123', priority: '높음', score: 98.5 },
-                    { rank: 2, part: 'TIDK', sn: 'SN-4589', priority: '높음', score: 85.2 },
-                    { rank: 3, part: 'TICC', sn: 'SN-7810', priority: '중간', score: 65.7 },
-                    { rank: 4, part: '엔코더', sn: 'SN-4591', priority: '높음', score: 55.1 },
-                    { rank: 5, part: 'DCU', sn: 'SN-2345', priority: '낮음', score: 40.3 },
-                ];
-                let html = '';
-                data.forEach(item => {
-                    let badgeClass = 'bg-secondary';
-                    if (item.priority === '높음') badgeClass = 'bg-red-500 text-white';
-                    if (item.priority === '중간') badgeClass = 'bg-yellow-400 text-black';
-                    html += `
+      document.addEventListener("DOMContentLoaded", () => {
+        const defaultTooltipCallback = {
+          plugins: {
+            tooltip: {
+              callbacks: {
+                title: function (tooltipItems) {
+                  const item = tooltipItems[0];
+                  let label = item.chart.data.labels[item.dataIndex];
+                  if (Array.isArray(label)) {
+                    return label.join(" ");
+                  } else {
+                    return label;
+                  }
+                },
+              },
+            },
+          },
+        };
+        const renderSurvivalCurveChart = () => {
+          const ctx = document
+            .getElementById("survivalCurveChart")
+            ?.getContext("2d");
+          if (!ctx) return;
+          new Chart(ctx, {
+            type: "line",
+            data: {
+              labels: Array.from({ length: 25 }, (_, i) => i * 1000),
+              datasets: [
+                {
+                  label: "생존 확률",
+                  data: [
+                    1, 0.99, 0.98, 0.97, 0.95, 0.92, 0.88, 0.85, 0.8, 0.75,
+                    0.68, 0.63, 0.58, 0.52, 0.46, 0.4, 0.35, 0.3, 0.25, 0.2,
+                    0.16, 0.12, 0.09, 0.06, 0.04,
+                  ],
+                  borderColor: "#F26419",
+                  backgroundColor: "rgba(242, 100, 25, 0.1)",
+                  fill: true,
+                  tension: 0.4,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: {
+                x: { title: { display: true, text: "운영 시간 (Hours)" } },
+                y: {
+                  title: { display: true, text: "생존 확률 (R(t))" },
+                  min: 0,
+                  max: 1,
+                },
+              },
+              ...defaultTooltipCallback,
+            },
+          });
+        };
+        const renderPartDistributionChart = () => {
+          const ctx = document
+            .getElementById("partDistributionChart")
+            ?.getContext("2d");
+          if (!ctx) return;
+          new Chart(ctx, {
+            type: "doughnut",
+            data: {
+              labels: ["EPR2A", "TIDK", "TICC", "엔코더", "DCU"],
+              datasets: [
+                {
+                  label: "부품 분포",
+                  data: [35, 25, 18, 15, 7],
+                  backgroundColor: [
+                    "#33658A",
+                    "#F6AE2D",
+                    "#55DDE0",
+                    "#2F4858",
+                    "#999999",
+                  ],
+                  borderColor: "#ffffff",
+                  borderWidth: 2,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { position: "bottom" },
+                ...defaultTooltipCallback.plugins,
+              },
+            },
+          });
+        };
+        const renderFailureRankingChart = () => {
+          const ctx = document
+            .getElementById("failureRankingChart")
+            ?.getContext("2d");
+          if (!ctx) return;
+          new Chart(ctx, {
+            type: "bar",
+            data: {
+              labels: ["EPR2A", "TIDK", "TICC", "엔코더", "DCU"],
+              datasets: [
+                {
+                  label: "고장 횟수",
+                  data: [22, 18, 11, 8, 5],
+                  backgroundColor: [
+                    "#F26419",
+                    "#F6AE2D",
+                    "#33658A",
+                    "#55DDE0",
+                    "#2F4858",
+                  ],
+                },
+              ],
+            },
+            options: {
+              indexAxis: "y",
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { display: false },
+                ...defaultTooltipCallback.plugins,
+              },
+              scales: {
+                x: { title: { display: true, text: "고장 횟수" } },
+              },
+            },
+          });
+        };
+        const populatePmPriorityTable = () => {
+          const tableBody = document.getElementById("pm-priority-table");
+          if (!tableBody) return;
+          const data = [
+            {
+              rank: 1,
+              part: "EPR2A",
+              sn: "SN-1123",
+              priority: "높음",
+              score: 98.5,
+            },
+            {
+              rank: 2,
+              part: "TIDK",
+              sn: "SN-4589",
+              priority: "높음",
+              score: 85.2,
+            },
+            {
+              rank: 3,
+              part: "TICC",
+              sn: "SN-7810",
+              priority: "중간",
+              score: 65.7,
+            },
+            {
+              rank: 4,
+              part: "엔코더",
+              sn: "SN-4591",
+              priority: "높음",
+              score: 55.1,
+            },
+            {
+              rank: 5,
+              part: "DCU",
+              sn: "SN-2345",
+              priority: "낮음",
+              score: 40.3,
+            },
+          ];
+          let html = "";
+          data.forEach((item) => {
+            let badgeClass = "bg-secondary";
+            if (item.priority === "높음") badgeClass = "bg-red-500 text-white";
+            if (item.priority === "중간")
+              badgeClass = "bg-yellow-400 text-black";
+            html += `
                         <tr class="border-b border-gray-200 hover:bg-gray-50">
                             <td class="p-3 font-bold text-lg text-[#33658A]">${item.rank}</td>
                             <td class="p-3">
@@ -361,14 +527,14 @@
                             <td class="p-3 font-bold text-lg text-[#F26419]">${item.score}</td>
                         </tr>
                     `;
-                });
-                tableBody.innerHTML = html;
-            };
-            renderSurvivalCurveChart();
-            renderPartDistributionChart();
-            renderFailureRankingChart();
-            populatePmPriorityTable();
-        });
+          });
+          tableBody.innerHTML = html;
+        };
+        renderSurvivalCurveChart();
+        renderPartDistributionChart();
+        renderFailureRankingChart();
+        populatePmPriorityTable();
+      });
     </script>
-</body>
+  </body>
 </html>

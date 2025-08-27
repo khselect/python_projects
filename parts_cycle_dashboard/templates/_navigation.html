@@ -1,0 +1,42 @@
+<ul class="nav nav-tabs mt-4 mb-4">
+  <li class="nav-item">
+    <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="/"
+      >데이터 관리</a
+    >
+  </li>
+  <li class="nav-item">
+    <a
+      class="nav-link {% if request.path == '/dashboard' %}active{% endif %}"
+      href="/dashboard"
+      >종합 대시보드</a
+    >
+  </li>
+  <li class="nav-item">
+    <a
+      class="nav-link {% if request.path == '/analysis-view' %}active{% endif %}"
+      href="/analysis-view"
+      >수명 분석</a
+    >
+  </li>
+  <li class="nav-item">
+    <a
+      class="nav-link {% if request.path == '/cost-analysis' %}active{% endif %}"
+      href="/cost-analysis"
+      >비용 분석</a
+    >
+  </li>
+  <li class="nav-item">
+    <a
+      class="nav-link {% if request.path == '/simulator' %}active{% endif %}"
+      href="/simulator"
+      >비용 시뮬레이터</a
+    >
+  </li>
+  <li class="nav-item">
+    <a
+      class="nav-link {% if request.path == '/infographic' %}active{% endif %}"
+      href="/infographic"
+      >인포그래픽</a
+    >
+  </li>
+</ul>
