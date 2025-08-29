@@ -32,7 +32,7 @@
         </header>
 
         {% include '_navigation.html' %}
-        
+
         <section id="inputs" class="bg-white p-6 rounded-lg shadow-md mb-8">
             <h2 class="text-2xl font-bold border-b pb-4 mb-6">시뮬레이션 변수 입력</h2>
             
@@ -40,7 +40,7 @@
                 
                 <div class="input-group">
                     <h3 class="text-xl font-bold mb-4 text-gray-800">공통 변수</h3>
-                    <div class="space-y-4">
+                    <div class="grid grid-cols-2 gap-x-4 gap-y-4">
                         <div>
                             <label for="simulation_period" class="block text-sm font-medium text-gray-700">시뮬레이션 기간 (개월)</label>
                             <input type="number" id="simulation_period" value="60" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
@@ -65,7 +65,7 @@
                             <label for="c_downtime" class="block text-sm font-medium text-gray-700">기회손실 비용 (원/시간)</label>
                             <input type="number" id="c_downtime" value="1000000" step="100000" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
                         </div>
-                        <div>
+                        <div class="col-span-2">
                             <label for="mttr" class="block text-sm font-medium text-gray-700">평균 수리 시간 (시간)</label>
                             <input type="number" id="mttr" value="4" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
                         </div>
@@ -78,7 +78,7 @@
                     <div class="space-y-4">
                         <div>
                             <label for="tbm_interval" class="block text-sm font-medium text-gray-700">주기정비 교체 주기 (개월)</label>
-                            <input type="number" id="tbm_interval" value="12" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                            <input type="number" id="tbm_interval" value="48" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
                         </div>
                         <div>
                             <label for="tbm_failure_prob" class="block text-sm font-medium text-gray-700">주기 내 고장 확률 (%)</label>

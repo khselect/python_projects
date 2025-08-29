@@ -1,6 +1,6 @@
-// cost_analysis.js (UI 업그레이드 v2) — 부품탭 확률표: 최소확률 필터 + CSV + v-scroll 고정
+// cost_analysis.js
+
 document.addEventListener("DOMContentLoaded", function () {
-  ensureEvidenceStyles(); // ⬅️ v-scroll 고정용 CSS 주입
   loadBudgetForecast();
   loadReplacementCostChart();
   loadPriorityMaintenance();
@@ -15,67 +15,158 @@ async function fetchData(url) {
   return res.json();
 }
 const fmtWon = (v) => (v ?? 0).toLocaleString("ko-KR") + " 원";
-const fmtInt = (v) => (v ?? 0).toLocaleString("ko-KR");
 
 /* ---------- 1) 고장 예측 기반 예산 계획 ---------- */
 function loadBudgetForecast() {
-  const section = document.getElementById("budget-forecast-section");
+  const forecastSection = document.getElementById("budget-forecast-section");
+  if (!forecastSection) return;
+
   fetchData("/api/cost/budget_forecast")
     .then((data) => {
       if (data.error) {
-        section.innerHTML = `<div class="alert alert-danger">예측 데이터를 불러오는 중 오류 발생: ${data.error}</div>`;
+        forecastSection.innerHTML = `<div class="alert alert-danger">예측 데이터를 불러오는 중 오류 발생: ${data.error}</div>`;
         return;
       }
-      const won = (v) => (v ?? 0).toLocaleString("ko-KR") + " 원";
-      const n2 = (v) => Number(v ?? 0).toFixed(2);
-      const horizonDays =
-        data.assumptions && data.assumptions.horizon_days
-          ? data.assumptions.horizon_days
-          : 90;
-
+      
       const totalCost = data.total_forecast_cost || 0;
-      const ciLow = data.ci95_low ?? null;
-      const ciHigh = data.ci95_high ?? null;
-
-      // 부품별 탭 HTML
+      const forecastDetails = data.forecast_details || {};
+      
       const tabsHtml = buildPartTabs(
-        data.forecast_details || {},
+        forecastDetails,
         data.explain || [],
-        horizonDays
+        data.assumptions?.horizon_days
       );
 
-      section.innerHTML = `
-        <div class="col-md-4 mb-3">
+      // 메인 예측 정보 UI 렌더링
+      forecastSection.innerHTML = `
+        <div class="col-md-5 mb-3 mb-md-0">
           <div class="card kpi-card h-100">
-            <div class="card-body">
-              <div class="text-muted">총 예상 교체 비용</div>
-              <div class="kpi-value text-primary mt-2">${won(totalCost)}</div>
-              <div class="mt-3 small text-muted">
-                <div><strong>간이 산식</strong> : Σ(예상 교체 수 × 평균 단가)</div>
-                <div><strong>오차 범위(95%)</strong> : ${
-                  ciLow !== null ? won(ciLow) : "—"
-                } ~ ${ciHigh !== null ? won(ciHigh) : "—"}</div>
+            <div class="card-body d-flex flex-column">
+              <div>
+                <div class="d-flex justify-content-between align-items-center">
+                  <h5 class="text-muted mb-0">총 예상 교체 비용 (향후 90일)</h5>
+                  <i class="bi bi-info-circle" 
+                     data-bs-toggle="tooltip" 
+                     data-bs-placement="top"
+                     title="과거 교체 이력과 수명 데이터를 분석하여, 향후 90일 내 고장 가능성이 높은 부품들의 예상 교체 비용 총합입니다.">
+                  </i>
+                </div>
+                <div class="kpi-value text-primary mt-2">${fmtWon(totalCost)}</div>
+              </div>
+              <hr>
+              <div class="flex-grow-1 d-flex flex-column">
+                  <h6 class="text-muted">부품별 예상 비용 기여도</h6>
+                  <div class="chart-container flex-grow-1 p-0" style="min-height: 250px;">
+                      <canvas id="forecastContributionChart"></canvas>
+                  </div>
               </div>
             </div>
           </div>
         </div>
-
-        <div class="col-md-8 mb-3">
+        <div class="col-md-7">
           ${tabsHtml}
         </div>`;
+
+      // ⭐️ 추가: '예상 비용 산출 방식' 설명 카드 HTML
+      const explanationHtml = `
+      <div class="card mb-4">
+        <div class="card-header">
+            <h3>예상 비용 산출 방식</h3>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-lg-4">
+                    <div class="p-3 rounded h-100" style="background-color: #e7f1ff; border-left: 5px solid #0d6efd;">
+                        <p class="fw-bold text-primary mb-1">1. 개별 부품 고장 확률 예측</p>
+                        <p class="mb-0 small">가동 중인 모든 부품(S/N 기준)의 현재 나이(h)와 과거 수명 데이터를 기반으로, 향후 예측 기간(예: 90일) 내에 고장날 확률(P)을 통계적으로 계산합니다.</p>
+                    </div>
+                </div>
+                <div class="col-lg-4">
+                    <div class="p-3 rounded h-100" style="background-color: #e5f7ef; border-left: 5px solid #198754;">
+                        <p class="fw-bold text-success mb-1">2. 부품 유형별 예상 교체 수량 산정</p>
+                        <p class="mb-1 small">동일한 부품 유형(예: DCU)에 속하는 모든 개별 부품들의 고장 확률을 합산하여, 해당 유형의 최종 '예상 교체 수량'을 산출합니다.</p>
+                        <small class="text-muted fst-italic">산술식: 예상 교체 수량 = Σ P (개별 부품들의 고장 확률 합)</small>
+                    </div>
+                </div>
+                <div class="col-lg-4">
+                    <div class="p-3 rounded h-100" style="background-color: #fff8e1; border-left: 5px solid #ffc107;">
+                        <p class="fw-bold text-warning mb-1">3. 총 예상 비용 계산</p>
+                        <p class="mb-1 small">산출된 부품 유형별 '예상 교체 수량'에 해당 부품의 '평균 단가'를 곱하여 비용을 계산하고, 모든 부품 유형의 비용을 합산하여 최종 '총 예상 교체 비용'을 도출합니다.</p>
+                        <small class="text-muted fst-italic">산술식: 총 예상 비용 = Σ (부품 유형별 예상 교체 수량 × 평균 단가)</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+      </div>
+      `;
+
+      // ⭐️ 추가: 메인 예산 계획 카드 바로 뒤에 설명 카드 삽입
+      const parentCard = forecastSection.closest('.card');
+      if (parentCard) {
+        parentCard.insertAdjacentHTML('afterend', explanationHtml);
+      }
+
+
+      // 비용 기여도 차트 생성 로직
+      const partLabels = Object.keys(forecastDetails);
+      if (partLabels.length > 0) {
+        const costData = partLabels.map(partId => forecastDetails[partId].total_cost);
+        const sortedData = partLabels.map((label, index) => ({
+          label,
+          cost: costData[index]
+        })).sort((a, b) => a.cost - b.cost);
+
+        const ctx = document.getElementById('forecastContributionChart').getContext('2d');
+        new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: sortedData.map(d => d.label),
+            datasets: [{
+              label: '예상 비용',
+              data: sortedData.map(d => d.cost),
+              backgroundColor: 'rgba(54, 162, 235, 0.7)',
+            }]
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: { callbacks: { label: (c) => ` ${fmtWon(c.raw)}` } }
+            },
+            scales: {
+              x: {
+                beginAtZero: true,
+                ticks: { callback: (v) => `${(v / 10000).toLocaleString('ko-KR')}만` }
+              }
+            }
+          }
+        });
+      }
+
+      // Bootstrap 툴팁 활성화
+      const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+      tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+      });
+
     })
     .catch((error) => {
       console.error("Error loading budget forecast:", error);
-      section.innerHTML = `<div class="alert alert-danger">예측 데이터를 불러오는 중 오류가 발생했습니다.</div>`;
+      forecastSection.innerHTML = `<div class="alert alert-danger">예측 데이터를 불러오는 중 오류가 발생했습니다.</div>`;
     });
 }
 
-/* 부품 탭 + 확률표(%) + 최소확률 필터 + CSV */
+
+/* ... buildPartTabs, renderProbabilityTable 등 나머지 함수들은
+   이전 답변('상위 N개 표시'로 수정한 버전)과 동일하게 유지합니다 ...
+*/
+/* 부품 탭 + 확률표(%) + 상위 N개 필터 + CSV */
 function buildPartTabs(details, explainRows, horizonDaysDefault) {
   const won = (v) => (v ?? 0).toLocaleString("ko-KR") + " 원";
   const n2 = (v) => Number(v ?? 0).toFixed(2);
 
-  // part_id별 explain 그룹
   const explainByPart = {};
   (explainRows || []).forEach((r) => {
     const pid = r.part_id || "";
@@ -102,7 +193,7 @@ function buildPartTabs(details, explainRows, horizonDaysDefault) {
         </button>
       </li>`;
 
-    const rowsAll = (explainByPart[partId] || []).slice(); // 복사
+    const rowsAll = (explainByPart[partId] || []).slice();
 
     panes += `
       <div class="tab-pane fade show ${active}" id="${safe}" role="tabpanel">
@@ -117,18 +208,17 @@ function buildPartTabs(details, explainRows, horizonDaysDefault) {
                 <div class="fs-6">${won(
                   v.unit_cost_mean
                 )} <span class="text-muted">± ${won(
-      v.unit_cost_std
-    )}</span></div>
+                  v.unit_cost_std
+                )}</span></div>
                 <div class="small text-muted mt-3 mb-1">예상 비용</div>
                 <div class="fs-5 fw-semibold">${won(v.total_cost)}</div>
               </div>
             </div>
           </div>
-
           <div class="col-lg-8">
             <div class="d-flex gap-2 justify-content-end align-items-center mb-2">
               <div class="input-group input-group-sm" style="width: 220px;">
-                <span class="input-group-text">기간(H)</span>
+                <span class="input-group-text">예측 기간</span>
                 <select class="form-select" id="${safe}-horizon">
                   <option value="30">30일</option>
                   <option value="60">60일</option>
@@ -136,15 +226,12 @@ function buildPartTabs(details, explainRows, horizonDaysDefault) {
                   <option value="180">180일</option>
                 </select>
               </div>
-              <div class="input-group input-group-sm" style="width: 200px;">
-                <span class="input-group-text">최소 확률</span>
-                <input class="form-control" id="${safe}-minpct" type="number" step="0.1" min="0" max="100" value="1.0">
-                <span class="input-group-text">%</span>
+              <div class="input-group input-group-sm" style="width: 180px;">
+                <span class="input-group-text">상위 N개 표시</span>
+                <input class="form-control" id="${safe}-topn" type="number" step="5" min="5" value="10">
               </div>
               <button id="${safe}-csv" class="btn btn-outline-secondary btn-sm">CSV 다운로드</button>
             </div>
-
-            <!-- 표 박스: 이 영역에서만 세로 스크롤 -->
             <div class="evidence-wrap">
               <table class="table table-sm table-bordered align-middle evidence-table">
                 <thead class="table-light">
@@ -153,7 +240,7 @@ function buildPartTabs(details, explainRows, horizonDaysDefault) {
                     <th class="text-end" style="min-width:100px;">나이(h)</th>
                     <th class="text-end" style="min-width:90px;">β(형상)</th>
                     <th class="text-end" style="min-width:90px;">η(척도)</th>
-                    <th class="text-end" style="min-width:140px;">P(다음 H일, %)</th>
+                    <th class="text-end" style="min-width:140px;">고장확률 P (%)</th>
                   </tr>
                 </thead>
                 <tbody id="${safe}-tbody"></tbody>
@@ -163,16 +250,14 @@ function buildPartTabs(details, explainRows, horizonDaysDefault) {
         </div>
       </div>`;
 
-    // 탭 DOM이 그려진 뒤: 렌더 + 이벤트 연결
     setTimeout(() => {
       const selH = document.getElementById(`${safe}-horizon`);
-      const inpP = document.getElementById(`${safe}-minpct`);
+      const inpN = document.getElementById(`${safe}-topn`);
       const btnC = document.getElementById(`${safe}-csv`);
       const tbodyId = `${safe}-tbody`;
 
-      if (!selH || !inpP || !btnC) return;
+      if (!selH || !inpN || !btnC) return;
 
-      // 초기값: 백엔드 horizonDaysDefault 반영
       if ([30, 60, 90, 180].includes(Number(horizonDaysDefault))) {
         selH.value = String(horizonDaysDefault);
       }
@@ -182,15 +267,14 @@ function buildPartTabs(details, explainRows, horizonDaysDefault) {
           tbodyId,
           rowsAll,
           Number(selH.value),
-          Number(inpP.value)
+          Number(inpN.value)
         );
-        // used: 현재 화면에 표시 중인 정렬/필터 결과 — CSV에서 사용
         btnC.onclick = () => downloadEvidenceCSV(partId, used);
       };
 
       selH.addEventListener("change", render);
-      inpP.addEventListener("input", render);
-      render(); // 최초 1회
+      inpN.addEventListener("input", render);
+      render();
     }, 0);
   });
 
@@ -199,24 +283,23 @@ function buildPartTabs(details, explainRows, horizonDaysDefault) {
   return nav + panes;
 }
 
-/* 확률표 렌더러 — 반환값: 화면에 표시된 행 배열( CSV 다운로드에 사용 ) */
-function renderProbabilityTable(tbodyId, rowsRaw, horizonDays, minPercent) {
+function renderProbabilityTable(tbodyId, rowsRaw, horizonDays, topN) {
   const tbody = document.getElementById(tbodyId);
   if (!tbody) return [];
 
-  const H = Math.max(1, Number(horizonDays) || 90) * 24; // 시간
-  const minP = Math.max(0, Number(minPercent) || 0) / 100.0; // 0~1
+  const H = Math.max(1, Number(horizonDays) || 90) * 24;
+  const N = Math.max(1, Number(topN) || 10);
 
   const rows = (rowsRaw || [])
     .map((r) => {
       const a = Number(r.age_hours ?? 0);
       const eta = Number(r.eta ?? 0);
       const beta = Number(r.beta ?? 0);
-      const p = weibullProbNext(a, eta, beta, H); // 0~1
+      const p = weibullProbNext(a, eta, beta, H);
       return { sn: r.serial || "", age: a, beta, eta, p };
     })
-    .filter((r) => r.p >= minP)
-    .sort((a, b) => b.p - a.p); // 확률 내림차순
+    .sort((a, b) => b.p - a.p)
+    .slice(0, N);
 
   if (!rows.length) {
     tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted">표시할 데이터가 없습니다.</td></tr>`;
@@ -231,40 +314,27 @@ function renderProbabilityTable(tbodyId, rowsRaw, horizonDays, minPercent) {
       <td class="text-end">${r.age.toLocaleString("ko-KR")}</td>
       <td class="text-end">${r.beta}</td>
       <td class="text-end">${r.eta.toLocaleString("ko-KR")}</td>
-      <td class="text-end">${(r.p * 100).toFixed(2)} %</td>
+      <td class="text-end fw-bold">${(r.p * 100).toFixed(2)} %</td>
     </tr>
   `
     )
     .join("");
 
-  return rows; // 현재 화면 상태를 반환
+  return rows;
 }
 
-/* CSV 다운로드 */
 function downloadEvidenceCSV(partId, rows) {
-  const header = [
-    "part_id",
-    "serial",
-    "age_hours",
-    "beta",
-    "eta",
-    "prob_percent",
-  ];
+  const header = ["part_id", "serial", "age_hours", "beta", "eta", "prob_percent"];
   const lines = [header.join(",")].concat(
     rows.map((r) =>
       [
         `"${String(partId).replace(/"/g, '""')}"`,
         `"${String(r.sn).replace(/"/g, '""')}"`,
-        r.age,
-        r.beta,
-        r.eta,
-        (r.p * 100).toFixed(2),
+        r.age, r.beta, r.eta, (r.p * 100).toFixed(2),
       ].join(",")
     )
   );
-  const blob = new Blob([lines.join("\n")], {
-    type: "text/csv;charset=utf-8;",
-  });
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -273,7 +343,6 @@ function downloadEvidenceCSV(partId, rows) {
   URL.revokeObjectURL(url);
 }
 
-/* Weibull */
 function weibullCDF(t, eta, beta) {
   if (!(eta > 0) || !(beta > 0) || !(t > 0)) return 0;
   const x = Math.min(Math.max(Math.pow(t / eta, beta), 0), 700);
@@ -284,27 +353,9 @@ function weibullProbNext(ageHours, eta, beta, horizonHours) {
   const H = Math.max(1, Number(horizonHours) || 1);
   const F1 = weibullCDF(a + H, eta, beta);
   const F0 = weibullCDF(a, eta, beta);
-  return Math.max(0, Math.min(1, F1 - F0));
+  return Math.max(0, Math.min(1, (F1 - F0) / (1 - F0)));
 }
 
-/* evidence 표 전용 CSS를 JS로 주입(HTML 수정 없이 v-scroll 동작 보장) */
-function ensureEvidenceStyles() {
-  if (document.getElementById("evidence-style")) return;
-  const css = `
-  .evidence-wrap{
-    height:420px; overflow-y:auto; overflow-x:auto;
-    -webkit-overflow-scrolling:touch; border:1px solid #dee2e6;
-    border-radius:.5rem; background:#fff;
-  }
-  .evidence-table{ width:max-content; min-width:100%; margin-bottom:0; table-layout:fixed; }
-  .evidence-table th,.evidence-table td{ white-space:nowrap; }
-  .evidence-table thead th{ position:sticky; top:0; z-index:5; background:#fff; }
-  `;
-  const style = document.createElement("style");
-  style.id = "evidence-style";
-  style.textContent = css;
-  document.head.appendChild(style);
-}
 
 /* ---------- 2) 지난 1년 교체 비용 차트 ---------- */
 async function loadReplacementCostChart() {
@@ -319,22 +370,18 @@ async function loadReplacementCostChart() {
       type: "bar",
       data: {
         labels: data.labels,
-        datasets: [
-          {
-            label: "교체 비용 (원)",
-            data: data.data,
-            backgroundColor: "rgba(255, 99, 132, 0.7)",
-          },
-        ],
+        datasets: [{
+          label: "교체 비용 (원)",
+          data: data.data,
+          backgroundColor: "rgba(255, 99, 132, 0.7)",
+        }, ],
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
           legend: { display: false },
-          tooltip: {
-            callbacks: { label: (c) => `${c.label}: ${fmtWon(c.raw)}` },
-          },
+          tooltip: { callbacks: { label: (c) => `${c.label}: ${fmtWon(c.raw)}` } },
         },
         scales: {
           y: {
@@ -368,11 +415,11 @@ async function loadPriorityMaintenance() {
       <table id="pm-table" class="table table-hover align-middle">
         <thead class="table-light">
           <tr>
-            <th data-key="rank"           class="sortable">우선순위</th>
-            <th data-key="part_id"        class="sortable">부품 (S/N)</th>
-            <th data-key="priority"       class="sortable">중요도</th>
-            <th data-key="usage_ratio"    class="sortable">B10 수명 사용률</th>
-            <th data-key="risk_score"     class="sortable">위험 점수</th>
+            <th data-key="rank" class="sortable">우선순위</th>
+            <th data-key="part_id" class="sortable">부품 (S/N)</th>
+            <th data-key="priority" class="sortable">중요도</th>
+            <th data-key="usage_ratio" class="sortable">B10 수명 사용률</th>
+            <th data-key="risk_score" class="sortable">위험 점수</th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -382,7 +429,6 @@ async function loadPriorityMaintenance() {
   try {
     const raw = await fetchData("/api/priority_maintenance");
     let rows = (raw || []).map((r, i) => ({ ...r, rank: i + 1 }));
-
     const tbody = section.querySelector("#pm-table tbody");
     const searchInput = section.querySelector("#pm-search");
     const btnCsv = section.querySelector("#pm-download");
@@ -390,24 +436,19 @@ async function loadPriorityMaintenance() {
     let sortDir = "asc";
 
     function badge(priority) {
-      if (priority === "높음")
-        return `<span class="badge bg-danger">높음</span>`;
-      if (priority === "중간")
-        return `<span class="badge bg-warning text-dark">중간</span>`;
+      if (priority === "높음") return `<span class="badge bg-danger">높음</span>`;
+      if (priority === "중간") return `<span class="badge bg-warning text-dark">중간</span>`;
       return `<span class="badge bg-secondary">낮음</span>`;
     }
     function render(list) {
       tbody.innerHTML = "";
       list.forEach((r, idx) => {
-        const usage = Math.max(0, Math.min(999, r.usage_ratio | 0)); // 0~999%
+        const usage = Math.max(0, Math.min(999, r.usage_ratio | 0));
         tbody.insertAdjacentHTML(
           "beforeend",
-          `
-          <tr>
+          `<tr>
             <td class="fw-bold">${idx + 1}</td>
-            <td>${r.part_id}<br><small class="text-muted">${
-            r.serial_number ?? ""
-          }</small></td>
+            <td>${r.part_id}<br><small class="text-muted">${r.serial_number ?? ""}</small></td>
             <td>${badge(r.priority)}</td>
             <td>
               <div class="progress" style="height:20px;">
@@ -431,18 +472,16 @@ async function loadPriorityMaintenance() {
           .includes(q)
       );
       list.sort((a, b) => {
-        const A = a[sortKey],
-          B = b[sortKey];
+        const A = a[sortKey], B = b[sortKey];
         if (typeof A === "number" && typeof B === "number")
           return sortDir === "asc" ? A - B : B - A;
-        return sortDir === "asc"
-          ? String(A).localeCompare(String(B))
-          : String(B).localeCompare(String(A));
+        return sortDir === "asc" ?
+          String(A).localeCompare(String(B)) :
+          String(B).localeCompare(String(A));
       });
       render(list);
     }
-
-    // 정렬 이벤트
+    
     section.querySelectorAll("th.sortable").forEach((th) => {
       th.style.cursor = "pointer";
       th.addEventListener("click", () => {
@@ -456,19 +495,10 @@ async function loadPriorityMaintenance() {
       });
     });
 
-    // 검색 이벤트
     searchInput.addEventListener("input", () => apply());
 
-    // CSV 다운로드
     btnCsv.addEventListener("click", () => {
-      const header = [
-        "rank",
-        "part_id",
-        "serial_number",
-        "priority",
-        "usage_ratio",
-        "risk_score",
-      ];
+      const header = ["rank", "part_id", "serial_number", "priority", "usage_ratio", "risk_score"];
       const csv = [header.join(",")]
         .concat(rows.map((r) => header.map((k) => r[k] ?? "").join(",")))
         .join("\n");
@@ -481,7 +511,7 @@ async function loadPriorityMaintenance() {
       URL.revokeObjectURL(url);
     });
 
-    apply(); // 최초 렌더
+    apply();
   } catch (e) {
     console.error(e);
     section.innerHTML = `<div class="alert alert-danger">우선순위 목록을 불러오는 중 오류가 발생했습니다.</div>`;
