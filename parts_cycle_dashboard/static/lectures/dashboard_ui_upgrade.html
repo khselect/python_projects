@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>종합 대시보드 UI/UX 개선 교육자료</title>
+<style>
+  :root {
+    --surface-1: #fcfcfb;
+    --page-bg: #f4f4f1;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #898781;
+    --border: rgba(11,11,11,0.10);
+    --grid: #e1e0d9;
+    --blue: #2a78d6;
+    --aqua: #1baf7a;
+    --yellow: #eda100;
+    --green: #008300;
+    --violet: #4a3aa7;
+    --red: #e34948;
+    --magenta: #e87ba4;
+    --orange: #eb6834;
+    --good: #0ca30c;
+    --warning: #fab219;
+    --serious: #ec835a;
+    --critical: #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --surface-1: #1a1a19;
+      --page-bg: #0d0d0d;
+      --text-primary: #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted: #898781;
+      --border: rgba(255,255,255,0.12);
+      --grid: #2c2c2a;
+      --blue: #3987e5;
+      --aqua: #199e70;
+      --yellow: #c98500;
+      --green: #008300;
+      --violet: #9085e9;
+      --red: #e66767;
+      --magenta: #d55181;
+      --orange: #d95926;
+      --good: #0ca30c;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", "Apple SD Gothic Neo", sans-serif;
+    background: var(--page-bg);
+    color: var(--text-primary);
+    line-height: 1.6;
+  }
+  .wrap {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2.5rem 1.5rem 5rem;
+  }
+  header.hero {
+    margin-bottom: 2rem;
+  }
+  header.hero .eyebrow {
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--blue);
+    text-transform: uppercase;
+    margin-bottom: 0.5rem;
+  }
+  header.hero h1 {
+    font-size: 2rem;
+    margin: 0 0 0.5rem;
+  }
+  header.hero p {
+    color: var(--text-secondary);
+    max-width: 68ch;
+    margin: 0;
+  }
+  .layout {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 1.5rem;
+    align-items: start;
+  }
+  @media (max-width: 800px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+  nav.side {
+    position: sticky;
+    top: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  nav.side button {
+    text-align: left;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit;
+    font-weight: 500;
+    font-size: 0.92rem;
+    padding: 0.7rem 0.9rem;
+    border-radius: 0.55rem;
+    cursor: pointer;
+    transition: background-color .15s ease;
+  }
+  nav.side button:hover { background: var(--border); }
+  nav.side button.active {
+    background: var(--blue);
+    color: #fff;
+    box-shadow: 0 4px 10px rgba(42,120,214,0.28);
+  }
+  main.content section {
+    display: none;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    padding: 1.75rem 2rem;
+    margin-bottom: 0;
+  }
+  main.content section.active { display: block; }
+  main.content h2 {
+    margin-top: 0;
+    font-size: 1.3rem;
+  }
+  main.content h3 {
+    font-size: 1.02rem;
+    margin: 1.5rem 0 0.6rem;
+  }
+  p { color: var(--text-secondary); }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.75rem 0 1.25rem;
+    font-size: 0.9rem;
+  }
+  th, td {
+    border: 1px solid var(--grid);
+    padding: 0.55rem 0.7rem;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: rgba(42,120,214,0.08); color: var(--text-primary); }
+  code {
+    background: rgba(11,11,11,0.06);
+    border-radius: 0.3rem;
+    padding: 0.1rem 0.35rem;
+    font-size: 0.88em;
+  }
+  @media (prefers-color-scheme: dark) {
+    code { background: rgba(255,255,255,0.10); }
+    th { background: rgba(57,135,229,0.15); }
+  }
+
+  /* --- 개요 카드 --- */
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0.9rem;
+    margin: 1rem 0 1.5rem;
+  }
+  .info-card {
+    border: 1px solid var(--border);
+    border-radius: 0.6rem;
+    padding: 1rem 1.1rem;
+    border-top: 3px solid var(--blue);
+  }
+  .info-card .label { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 0.3rem; }
+  .info-card .value { font-weight: 700; font-size: 1.05rem; }
+
+  /* --- Before/After 토글 --- */
+  .toggle-row {
+    display: inline-flex;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 3px;
+    margin-bottom: 1.25rem;
+    background: var(--page-bg);
+  }
+  .toggle-row button {
+    border: none;
+    background: transparent;
+    padding: 0.5rem 1.1rem;
+    border-radius: 999px;
+    font: inherit;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    color: var(--text-secondary);
+  }
+  .toggle-row button.active {
+    background: var(--blue);
+    color: #fff;
+  }
+  .mock-frame {
+    border: 1px solid var(--border);
+    border-radius: 0.6rem;
+    overflow: hidden;
+  }
+  .mock-view { display: none; }
+  .mock-view.active { display: block; }
+  .mock-tabs-h {
+    display: flex;
+    gap: 0.25rem;
+    padding: 0.75rem 0.75rem 0;
+    border-bottom: 1px solid var(--grid);
+    background: var(--page-bg);
+  }
+  .mock-tabs-h span {
+    padding: 0.55rem 0.9rem;
+    font-size: 0.82rem;
+    border-radius: 0.4rem 0.4rem 0 0;
+    color: var(--text-secondary);
+    border: 1px solid var(--grid);
+    border-bottom: none;
+  }
+  .mock-tabs-h span.on { background: var(--surface-1); color: var(--text-primary); font-weight: 700; }
+  .mock-body-h { padding: 1.25rem; background: var(--surface-1); }
+  .mock-chart-placeholder {
+    height: 140px;
+    border-radius: 0.5rem;
+    background: repeating-linear-gradient(135deg, rgba(42,120,214,0.10), rgba(42,120,214,0.10) 10px, rgba(42,120,214,0.16) 10px, rgba(42,120,214,0.16) 20px);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-muted); font-size: 0.85rem;
+  }
+  .mock-split { display: flex; }
+  .mock-tabs-v {
+    width: 150px;
+    padding: 0.9rem 0.6rem;
+    background: var(--page-bg);
+    border-right: 1px solid var(--grid);
+    display: flex; flex-direction: column; gap: 0.4rem;
+  }
+  .mock-tabs-v span {
+    padding: 0.6rem 0.7rem;
+    border-radius: 0.5rem;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+  }
+  .mock-tabs-v span.on { background: var(--blue); color: #fff; font-weight: 700; box-shadow: 0 3px 8px rgba(42,120,214,.3); }
+  .mock-body-v { flex: 1; padding: 1.1rem; }
+  .mock-kpi-row { display: flex; gap: 0.6rem; margin-bottom: 0.9rem; }
+  .mock-kpi {
+    flex: 1;
+    border: 1px solid var(--border);
+    border-top: 3px solid var(--blue);
+    border-radius: 0.5rem;
+    padding: 0.6rem 0.7rem;
+  }
+  .mock-kpi .l { font-size: 0.68rem; color: var(--text-muted); }
+  .mock-kpi .v { font-weight: 700; font-size: 1.05rem; }
+
+  /* --- 팔레트 --- */
+  .swatch-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 0.75rem;
+    margin: 1rem 0 1.5rem;
+  }
+  .swatch {
+    border-radius: 0.55rem;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    cursor: pointer;
+  }
+  .swatch .chip { height: 60px; }
+  .swatch .meta { padding: 0.5rem 0.65rem; background: var(--surface-1); }
+  .swatch .meta .name { font-weight: 700; font-size: 0.85rem; }
+  .swatch .meta .hex { font-size: 0.75rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .status-note {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    margin-top: -0.5rem;
+  }
+
+  /* --- Emphasis 데모 --- */
+  .bar-demo {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.9rem;
+    height: 170px;
+    padding: 1rem 0.5rem 0;
+    border-bottom: 1px solid var(--grid);
+    margin-bottom: 0.5rem;
+  }
+  .bar-demo .bar {
+    flex: 1;
+    background: rgba(42,120,214,0.45);
+    border-radius: 0.3rem 0.3rem 0 0;
+    position: relative;
+    transition: background-color .2s ease, transform .2s ease;
+    cursor: pointer;
+  }
+  .bar-demo .bar span {
+    position: absolute;
+    top: -1.4rem;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+  }
+  .bar-demo .bar.emph {
+    background: var(--critical);
+  }
+  .bar-demo .bar.emph span { color: var(--critical); }
+  .bar-caption { font-size: 0.85rem; color: var(--text-muted); text-align: center; }
+
+  /* --- 파일 구조 아코디언 --- */
+  .file-tree { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 1rem; }
+  .file-item {
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    overflow: hidden;
+  }
+  .file-item summary {
+    padding: 0.7rem 1rem;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.9rem;
+    background: var(--page-bg);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .file-item summary::-webkit-details-marker { display: none; }
+  .file-item summary .tag {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--blue);
+    border: 1px solid var(--blue);
+    border-radius: 999px;
+    padding: 0.1rem 0.55rem;
+  }
+  .file-item div.body { padding: 0.85rem 1rem; font-size: 0.88rem; color: var(--text-secondary); }
+
+  .checklist { list-style: none; padding: 0; margin: 1rem 0; }
+  .checklist li {
+    display: flex;
+    gap: 0.6rem;
+    padding: 0.55rem 0;
+    border-bottom: 1px solid var(--grid);
+    font-size: 0.92rem;
+    color: var(--text-secondary);
+  }
+  .checklist li::before {
+    content: "✓";
+    color: var(--good);
+    font-weight: 700;
+  }
+  footer.page {
+    margin-top: 2rem;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <div class="eyebrow">Parts Cycle Dashboard · 내부 교육자료</div>
+    <h1>종합 대시보드 UI/UX 개선 가이드</h1>
+    <p>
+      「종합 대시보드」 서브탭 구조 개편(수평→수직) 및 차트 시각화 개선 작업의 배경, 적용
+      원칙, 코드 구조를 정리한 자료입니다. 신규 참여자 온보딩 및 유사 화면 개발 시 참고용으로
+      활용하세요. 좌측 메뉴를 눌러 섹션을 이동할 수 있습니다.
+    </p>
+  </header>
+
+  <div class="layout">
+    <nav class="side" id="side-nav"></nav>
+    <main class="content" id="content"></main>
+  </div>
+
+  <footer class="page">
+    본 자료는 <code>/static/lectures/dashboard_ui_upgrade.html</code>에 위치하며, 코드 변경과
+    함께 최신화가 필요합니다. 기술 상세는 <code>docs/기술상세서.md</code> 참고.
+  </footer>
+</div>
+
+<script>
+const sections = [
+  { id: "overview", label: "1. 프로젝트 개요" },
+  { id: "before-after", label: "2. Before / After" },
+  { id: "palette", label: "3. 색상 팔레트" },
+  { id: "emphasis", label: "4. KPI · 강조 패턴" },
+  { id: "chart-changes", label: "5. 차트별 개선점" },
+  { id: "file-structure", label: "6. 코드 구조" },
+  { id: "checklist", label: "7. 체크리스트" },
+];
+
+const sideNav = document.getElementById("side-nav");
+const content = document.getElementById("content");
+
+sideNav.innerHTML = sections
+  .map((s, i) => `<button data-target="${s.id}" class="${i === 0 ? "active" : ""}">${s.label}</button>`)
+  .join("");
+
+function renderSection(id) {
+  document.querySelectorAll("main.content section").forEach((el) => el.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+  document.querySelectorAll("nav.side button").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.target === id);
+  });
+}
+
+sideNav.addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-target]");
+  if (!btn) return;
+  renderSection(btn.dataset.target);
+});
+
+content.innerHTML = `
+<section id="overview">
+  <h2>1. 프로젝트 개요</h2>
+  <p>
+    부품 수명주기 관리 대시보드는 설비 부품의 교체·고장 이력을 관리하고, Weibull 신뢰성
+    분석으로 수명을 예측하며, TBM(시간기준 정비) 대비 PdM(예지정비) 비용을 시뮬레이션하는
+    Flask 기반 웹 애플리케이션입니다.
+  </p>
+  <div class="card-grid">
+    <div class="info-card"><div class="label">구현 방식</div><div class="value">Flask + SQLAlchemy + SQLite</div></div>
+    <div class="info-card"><div class="label">프론트엔드</div><div class="value">Jinja2 + Bootstrap 5 + Chart.js</div></div>
+    <div class="info-card"><div class="label">분석 엔진</div><div class="value">SciPy Weibull MLE (중도절단)</div></div>
+    <div class="info-card"><div class="label">실행 포트</div><div class="value">5001 (dev) / 8000 (prod)</div></div>
+  </div>
+  <h3>이번 개편 범위</h3>
+  <p>
+    「종합 대시보드」(<code>/dashboard</code>) 화면의 6개 지표 탭 — 부품 분포 비율, 고장 부품
+    순위, 수명 분포(히트맵), 설치 추이, 고장 수명 비율, 월별 고장 추이 — 에 대해
+    <strong>① 탭 내비게이션 구조</strong>와 <strong>② 차트·정보 표현 방식</strong>을
+    함께 개선했습니다.
+  </p>
+</section>
+
+<section id="before-after">
+  <h2>2. Before / After — 서브탭 구조</h2>
+  <p>
+    기존에는 상단 수평 탭(Bootstrap <code>nav-tabs</code>) 6개가 한 줄로 나열되어 있었고,
+    탭이 늘어날수록 줄바꿈되며 화면이 단조로워지는 문제가 있었습니다. 좌측 <strong>수직
+    필(pill) 탭</strong>으로 바꾸고, 각 탭 상단에 <strong>KPI 요약 카드</strong>를
+    추가했습니다. 아래 버튼으로 두 구조를 비교해 보세요.
+  </p>
+  <div class="toggle-row" id="ba-toggle">
+    <button data-view="before" class="active">Before</button>
+    <button data-view="after">After</button>
+  </div>
+  <div class="mock-frame">
+    <div class="mock-view active" id="mock-before">
+      <div class="mock-tabs-h">
+        <span class="on">부품 분포 비율</span>
+        <span>고장 부품 순위</span>
+        <span>수명 분포</span>
+        <span>설치 추이</span>
+        <span>고장 수명 비율</span>
+        <span>월별 고장 추이</span>
+      </div>
+      <div class="mock-body-h">
+        <div class="mock-chart-placeholder">Chart.js — 기본 파이차트</div>
+      </div>
+    </div>
+    <div class="mock-view" id="mock-after">
+      <div class="mock-split">
+        <div class="mock-tabs-v">
+          <span class="on">부품 분포 비율</span>
+          <span>고장 부품 순위</span>
+          <span>수명 분포 (히트맵)</span>
+          <span>설치 추이</span>
+          <span>고장 수명 비율</span>
+          <span>월별 고장 추이</span>
+        </div>
+        <div class="mock-body-v">
+          <div class="mock-kpi-row">
+            <div class="mock-kpi"><div class="l">총 부품 수</div><div class="v">128개</div></div>
+            <div class="mock-kpi"><div class="l">부품 유형 수</div><div class="v">5종</div></div>
+            <div class="mock-kpi"><div class="l">최다 사용 부품</div><div class="v">DCU</div></div>
+          </div>
+          <div class="mock-chart-placeholder">Chart.js — 도넛차트 + %라벨</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <h3>왜 수직 탭인가</h3>
+  <ul>
+    <li>탭 개수가 6개로 많아 수평 배치 시 줄바꿈되거나 라벨이 좁아짐 → 수직 배치는 탭 폭 제약이 없음</li>
+    <li>좌측 고정 메뉴 + 우측 콘텐츠 레이아웃은 대시보드형 화면에서 익숙한 패턴(사이드바 내비게이션)</li>
+    <li>활성 탭이 파란 배경 알약으로 강조되어 현재 보고 있는 지표를 더 명확히 인지 가능</li>
+  </ul>
+</section>
+
+<section id="palette">
+  <h2>3. 색상 팔레트 — 컬러블라인드 세이프</h2>
+  <p>
+    기존 차트는 Bootstrap 기본 색상(파랑/회색/초록/빨강/노랑 등)을 순서 없이 사용해, 색약
+    사용자에게는 인접 색이 구분되지 않을 위험이 있었습니다. 이번 개편에서는 <strong>인접
+    색상 간 최소 대비(ΔE)를 검증한 고정 순서 팔레트</strong>를 도입했습니다. 아래 스와치를
+    눌러보면 실제 <code>dashboard.js</code>에서 쓰이는 값과 용도를 확인할 수 있습니다.
+  </p>
+  <h3>카테고리컬 (항목 구분용, 고정 순서)</h3>
+  <div class="swatch-grid" id="swatch-categorical"></div>
+  <h3>상태 색상 (의미 고정, 다른 용도로 재사용 금지)</h3>
+  <div class="swatch-grid" id="swatch-status"></div>
+  <p class="status-note">
+    상태 색상은 아이콘/라벨과 함께 사용하며 색상만으로 의미를 전달하지 않습니다
+    (예: 위험 항목은 색상 + "최다 고장" 텍스트 라벨을 함께 표기).
+  </p>
+</section>
+
+<section id="emphasis">
+  <h2>4. KPI 카드 &amp; 강조(Emphasis) 패턴</h2>
+  <p>
+    "고장 부품 순위", "고장 수명 비율" 차트처럼 <strong>여러 항목 중 가장 주의가 필요한
+    1건을 짚어줘야 하는 경우</strong>, 모든 막대를 같은 카테고리컬 색으로 칠하는 대신
+    <strong>1위만 위험색(critical red)으로 강조하고 나머지는 무채색 계열</strong>로 낮춥니다.
+    아래 막대를 클릭해 강조 대상을 바꿔볼 수 있습니다.
+  </p>
+  <div class="bar-demo" id="bar-demo"></div>
+  <p class="bar-caption">막대를 클릭하면 해당 부품이 "이번 달 최다 고장 부품"으로 강조됩니다.</p>
+  <h3>KPI 스탯 타일</h3>
+  <p>
+    각 탭 상단에는 차트를 보기 전에 핵심 숫자를 먼저 전달하는 3~4개의 스탯 카드가
+    있습니다(<code>renderKpiRow()</code>). 총량 · 최다/최소 항목 · 전월 대비 증감처럼
+    "차트를 해석하지 않아도 알 수 있는 요약"을 담는 것이 원칙입니다.
+  </p>
+</section>
+
+<section id="chart-changes">
+  <h2>5. 차트별 개선 내용 요약</h2>
+  <table>
+    <thead><tr><th>탭</th><th>차트 유형</th><th>개선 내용</th></tr></thead>
+    <tbody>
+      <tr><td>부품 분포 비율</td><td>도넛</td><td>고정 순서 팔레트, 5% 이상 구간에 % 직접 라벨, 범례 우측 배치</td></tr>
+      <tr><td>고장 부품 순위</td><td>막대</td><td>1위만 위험색 강조(emphasis), 막대 끝에 건수 라벨</td></tr>
+      <tr><td>수명 분포 (히트맵)</td><td>Matrix</td><td>건수 비례 red 시퀀셜 농도, 셀 내 숫자 표기, 하단 농도 범례</td></tr>
+      <tr><td>설치 추이</td><td>라인</td><td>얇은 라인 + 연한 영역 채우기로 추세 강조</td></tr>
+      <tr><td>고장 수명 비율</td><td>수평 막대</td><td>최고 비율 항목만 강조색, % 직접 라벨</td></tr>
+      <tr><td>월별 고장 추이</td><td>라인</td><td>위험색 라인 + KPI에 전월 대비 증감(▲/▼, %) 표기</td></tr>
+    </tbody>
+  </table>
+  <p>공통적으로 <code>chartjs-plugin-datalabels</code>를 등록해, 툴팁에 의존하지 않고도
+  값을 바로 읽을 수 있도록 했습니다.</p>
+</section>
+
+<section id="file-structure">
+  <h2>6. 관련 코드 구조</h2>
+  <p>이번 개편에서 실제로 수정된 파일들입니다. 항목을 눌러 역할을 확인하세요.</p>
+  <div class="file-tree" id="file-tree"></div>
+</section>
+
+<section id="checklist">
+  <h2>7. 신규 탭/차트 추가 시 체크리스트</h2>
+  <ul class="checklist">
+    <li>새 탭 버튼을 <code>#dashboard-tabs</code>에 <code>data-bs-toggle="pill"</code>로 추가했다</li>
+    <li>해당 탭 패널에 KPI 컨테이너(<code>&lt;div class="row g-3 mb-3" id="{탭}-kpis"&gt;</code>)를 넣었다</li>
+    <li><code>chartLoadFunctions</code> 매핑에 새 탭 ID → 로드 함수를 등록했다</li>
+    <li>색상은 <code>PALETTE</code>/<code>STATUS</code> 상수에서만 가져다 썼다 (임의 hex 금지)</li>
+    <li>강조가 필요한 "1등/최악" 항목이 있는지 검토하고, 있다면 emphasis 패턴을 적용했다</li>
+    <li><code>docs/기술상세서.md</code>의 10장 표에 새 탭 정보를 추가했다</li>
+  </ul>
+</section>
+`;
+
+// --- 팔레트 스와치 렌더 ---
+const categorical = [
+  { name: "Blue", hex: "#2a78d6", use: "1순위 카테고리 / 시퀀셜 기본색" },
+  { name: "Aqua", hex: "#1baf7a", use: "2순위 카테고리" },
+  { name: "Yellow", hex: "#eda100", use: "3순위 카테고리" },
+  { name: "Green", hex: "#008300", use: "4순위 카테고리 / 개선·양호 지표" },
+  { name: "Violet", hex: "#4a3aa7", use: "5순위 카테고리 / 비율·강도 지표" },
+  { name: "Red", hex: "#e34948", use: "6순위 카테고리 / 히트맵 시퀀셜" },
+  { name: "Magenta", hex: "#e87ba4", use: "7순위 카테고리" },
+  { name: "Orange", hex: "#eb6834", use: "8순위 카테고리" },
+];
+const statusColors = [
+  { name: "Good", hex: "#0ca30c", use: "개선/양호 (전월 대비 감소 등)" },
+  { name: "Warning", hex: "#fab219", use: "주의 (아이콘·라벨 필수)" },
+  { name: "Serious", hex: "#ec835a", use: "심각" },
+  { name: "Critical", hex: "#d03b3b", use: "최다 고장 / 최고 위험 강조" },
+];
+
+function renderSwatches(containerId, items) {
+  const el = document.getElementById(containerId);
+  el.innerHTML = items
+    .map(
+      (c) => `
+      <div class="swatch" title="${c.use}">
+        <div class="chip" style="background:${c.hex}"></div>
+        <div class="meta">
+          <div class="name">${c.name}</div>
+          <div class="hex">${c.hex}</div>
+        </div>
+      </div>`
+    )
+    .join("");
+}
+renderSwatches("swatch-categorical", categorical);
+renderSwatches("swatch-status", statusColors);
+
+// --- Before/After 토글 ---
+document.getElementById("ba-toggle").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-view]");
+  if (!btn) return;
+  document.querySelectorAll("#ba-toggle button").forEach((b) => b.classList.toggle("active", b === btn));
+  document.getElementById("mock-before").classList.toggle("active", btn.dataset.view === "before");
+  document.getElementById("mock-after").classList.toggle("active", btn.dataset.view === "after");
+});
+
+// --- Emphasis 막대 데모 ---
+const barData = [
+  { label: "DCU", value: 62 },
+  { label: "EPR2A", value: 88 },
+  { label: "TIDK", value: 45 },
+  { label: "TICC", value: 30 },
+  { label: "엔코더", value: 55 },
+];
+let emphIdx = barData.reduce((maxI, d, i, arr) => (d.value > arr[maxI].value ? i : maxI), 0);
+
+function renderBarDemo() {
+  const el = document.getElementById("bar-demo");
+  el.innerHTML = barData
+    .map(
+      (d, i) => `
+      <div class="bar ${i === emphIdx ? "emph" : ""}" style="height:${d.value}%" data-i="${i}">
+        <span>${d.value}건</span>
+      </div>`
+    )
+    .join("");
+}
+renderBarDemo();
+document.getElementById("emphasis").addEventListener("click", (e) => {
+  const bar = e.target.closest(".bar");
+  if (!bar) return;
+  emphIdx = Number(bar.dataset.i);
+  renderBarDemo();
+});
+
+// --- 파일 구조 아코디언 ---
+const files = [
+  { name: "templates/dashboard.html", tag: "TEMPLATE", body: "수직 필 탭 마크업, KPI 컨테이너, 지표 설명 카드(insight-card), 히트맵 범례를 포함한 종합 대시보드 페이지 템플릿." },
+  { name: "static/js/dashboard.js", tag: "SCRIPT", body: "PALETTE/INK/STATUS 색상 상수, renderKpiRow() 공용 함수, 6개 지표별 load*Chart() 함수(데이터 fetch → KPI 렌더 → Chart.js 렌더)." },
+  { name: "templates/_navigation.html", tag: "TEMPLATE", body: "전체 페이지 상단 공용 내비게이션(데이터 관리/종합 대시보드/수명 분석/비용 분석/비용 시뮬레이터/인포그래픽). 이번 개편에서는 미변경." },
+  { name: "app.py — /api/* 라우트", tag: "BACKEND", body: "6개 지표용 API(part_distribution, failure_ranking, failure_lifespan_ratio, failure_heatmap, installation_trend, failure_rate_trend)는 미변경 — 이번 개편은 프론트엔드 전용." },
+  { name: "docs/기술상세서.md", tag: "DOC", body: "10장에 대시보드 UI 구조, KPI 타일, 팔레트, 차트별 개선점, 데이터 흐름을 정리." },
+];
+document.getElementById("file-tree").innerHTML = files
+  .map(
+    (f) => `
+    <details class="file-item">
+      <summary><span>${f.name}</span><span class="tag">${f.tag}</span></summary>
+      <div class="body">${f.body}</div>
+    </details>`
+  )
+  .join("");
+
+renderSection("overview");
+</script>
+</body>
+</html>
