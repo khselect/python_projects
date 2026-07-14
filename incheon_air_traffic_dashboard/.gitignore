@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.env
+data/*.xlsx
+data/*.xls
+!data/.gitkeep
+*.db
+venv/
+.DS_Store

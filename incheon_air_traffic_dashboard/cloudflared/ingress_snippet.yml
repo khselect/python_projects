@@ -1,0 +1,24 @@
+# ------------------------------------------------------------------
+# 기존 cloudflared 터널 설정 파일(보통 ~/.cloudflared/config.yml)의
+# ingress 목록에 아래 규칙을 "맨 앞쪽"(더 구체적인 규칙이 위로)에 추가하세요.
+# 이미 parts.sielain.com 등 다른 서비스가 등록되어 있다면 그 목록에 병합하면 됩니다.
+#
+# 예시 (기존 항목은 실제 값으로 유지):
+# ------------------------------------------------------------------
+ingress:
+  - hostname: air.sielain.com
+    service: http://localhost:8501     # docker-compose의 frontend 서비스 포트(.env의 FRONTEND_PORT)와 일치시킬 것
+
+  # --- 기존에 등록되어 있던 다른 서비스 규칙들 (예시, 실제 파일 내용으로 대체) ---
+  # - hostname: parts.sielain.com
+  #   service: http://localhost:XXXX
+
+  - service: http_status:404   # 반드시 마지막 줄(catch-all)에 위치해야 함
+
+# 적용 절차:
+#   1) DNS 레코드 연결(최초 1회):
+#      cloudflared tunnel route dns <터널이름 또는 ID> air.sielain.com
+#   2) config.yml 저장 후 cloudflared 서비스 재시작:
+#      - launchd로 등록되어 있다면: launchctl kickstart -k gui/$(id -u)/com.cloudflare.cloudflared
+#      - 또는 수동 실행 중이라면 프로세스를 종료 후 `cloudflared tunnel run <터널이름>` 재실행
+#   3) https://air.sielain.com 접속 확인
