@@ -1,7 +1,7 @@
 """인천 1호선 초미세먼지 · 통행량 통합 분석 대시보드 (Streamlit 프론트엔드)
 
 백엔드(FastAPI + PostgreSQL)에서 데이터를 받아
-과제1(추세·예측) / 과제2(교차분석) / 과제3(지도) 3개 탭으로 시각화한다.
+과제1(추세·예측) / 과제2(교차분석) / 과제3(지도) / 과제4(요약보고서)로 시각화한다.
 """
 import folium
 import pandas as pd
@@ -27,7 +27,12 @@ except Exception as e:
 pm_stations = pm25_stations(stations)
 DEFAULT_STATION = "인천대입구"
 
-tab1, tab2, tab3 = st.tabs(["1. 추세 · 기간예측", "2. 미세먼지-통행량 교차분석", "3. 혼잡도-미세먼지 지도"])
+tab1, tab2, tab3, tab4 = st.tabs([
+    "1. 추세 · 기간예측",
+    "2. 미세먼지-통행량 교차분석",
+    "3. 혼잡도-미세먼지 지도",
+    "4. 요약보고서",
+])
 
 # ============================================================
 # 탭 1: 추세 · 기간예측
@@ -109,26 +114,61 @@ with tab2:
     with cc2:
         scatter = api_get("/api/cross/")
         df = pd.DataFrame(scatter["points"])
-        df["highlight"] = df["station"].apply(lambda s: "선택역" if s == station2 else "기타 역")
+        avg_x = df["avg_pm25"].mean()
+        avg_y = df["total_traffic"].mean()
+        df["priority"] = (df["avg_pm25"] > avg_x) & (df["total_traffic"] > avg_y)
+        df["risk_score"] = (df["avg_pm25"] - avg_x) * (df["total_traffic"] - avg_y)
+        priority_df = df[df["priority"]].sort_values("risk_score", ascending=False)
+
+        st.markdown("#### 역별 사분면 우선순위 산점도")
         fig3 = go.Figure()
-        for grp, color, size in [("기타 역", "rgba(37,99,235,.55)", 8), ("선택역", "#dc2626", 13)]:
-            sub = df[df["highlight"] == grp]
-            fig3.add_trace(go.Scatter(x=sub["avg_pm25"], y=sub["total_traffic"], mode="markers",
-                                       name=grp, marker=dict(color=color, size=size),
-                                       text=sub["station"], hovertemplate="%{text}<br>PM2.5 %{x:.1f}<br>통행량 %{y:,}"))
-        fig3.update_layout(height=380, xaxis_title="PM2.5 월평균(㎍/㎥)", yaxis_title="일 통행량 합계(명)",
-                            legend=dict(orientation="h", y=1.1), margin=dict(t=30))
+        groups = [
+            ("일반 역", df[(~df["priority"]) & (df["station"] != station2)], "rgba(37,99,235,.55)", 8, "#64748b", "Arial"),
+            ("고혼잡·고농도", df[df["priority"] & (df["station"] != station2)], "#dc2626", 11, "#dc2626", "Arial Black"),
+            ("선택역", df[df["station"] == station2], "#0f172a", 14, "#0f172a", "Arial Black"),
+        ]
+        for name, sub, color, size, text_color, font_family in groups:
+            if sub.empty:
+                continue
+            fig3.add_trace(go.Scatter(
+                x=sub["avg_pm25"], y=sub["total_traffic"],
+                mode="markers+text", name=name,
+                marker=dict(color=color, size=size, line=dict(color=color, width=1)),
+                text=sub["station"], textposition="middle right",
+                textfont=dict(color=text_color, size=11, family=font_family),
+                hoverinfo="skip", cliponaxis=False,
+            ))
+        fig3.add_shape(
+            type="rect", x0=avg_x, x1=df["avg_pm25"].max() * 1.02,
+            y0=avg_y, y1=df["total_traffic"].max() * 1.04,
+            fillcolor="rgba(220,38,38,.08)", line_width=0, layer="below",
+        )
+        fig3.add_vline(x=avg_x, line_dash="dash", line_color="#94a3b8", line_width=1)
+        fig3.add_hline(y=avg_y, line_dash="dash", line_color="#94a3b8", line_width=1)
+        fig3.update_layout(
+            height=500,
+            xaxis_title="PM2.5 월평균(㎍/㎥)",
+            yaxis_title="일 통행량 합계(명)",
+            legend=dict(orientation="h", y=1.08),
+            margin=dict(t=45, r=75),
+        )
         st.plotly_chart(fig3, use_container_width=True)
         st.metric("전체 28개 역 기준 상관계수", f"{scatter['correlation']*100:.1f}%")
         st.caption(
             "⚠ 이 값은 **선택한 역과 무관하게** 공통 28개 역 전체를 대상으로 계산된 상수입니다. "
-            "역을 바꿔도 이 수치 자체는 변하지 않는 것이 정상이며, 위 그래프의 빨간 점(선택 역)이 "
-            "전체 추세에서 어디에 위치하는지로 해당 역의 상대적 위치를 확인하세요."
+            "점선 십자선은 평균 PM2.5와 평균 통행량이며, 붉은 우상단은 두 값이 모두 평균보다 높은 "
+            "고혼잡·고농도 사분면입니다. 모든 역명은 그래프에 항상 표시됩니다."
         )
+        st.markdown(
+            f"**⚠ 우선순위 검토 대상 — 평균보다 PM2.5·통행량이 모두 높은 역 "
+            f"({len(priority_df)}개)**"
+        )
+        st.write(" · ".join(
+            f"{row.station} (PM2.5 {row.avg_pm25:.1f}㎍/㎥, 통행량 {int(row.total_traffic):,}명/일)"
+            for row in priority_df.itertuples()
+        ))
         my_point = next((p for p in scatter["points"] if p["station"] == station2), None)
         if my_point:
-            avg_x = sum(p["avg_pm25"] for p in scatter["points"]) / len(scatter["points"])
-            avg_y = sum(p["total_traffic"] for p in scatter["points"]) / len(scatter["points"])
             st.caption(
                 f"**{station2}** 자체 값 — PM2.5 월평균 {my_point['avg_pm25']:.1f}㎍/㎥ "
                 f"(전체평균 대비 {my_point['avg_pm25']-avg_x:+.1f}), "
@@ -189,3 +229,53 @@ with tab3:
         st.markdown("**PM2.5 상위 5개 역**")
         for p in mapdata["top_pm25"]:
             st.write(f"- {p['station']} — PM2.5 {p['avg_pm25']:.1f}㎍/㎥, 통행량 {p['congestion']:,}명/일")
+
+# ============================================================
+# 탭 4: 요약보고서
+# ============================================================
+with tab4:
+    st.subheader("과제4. 1페이지 요약보고서")
+    st.caption(
+        "현재 탭의 선택값과 API 계산값을 고정 문장 템플릿에 반영합니다. "
+        "역 또는 기간을 변경하면 보고서도 자동으로 갱신됩니다."
+    )
+
+    st.markdown("### 인천 1호선 초미세먼지·통행량 통합 분석 요약보고서")
+    if start_day <= end_day:
+        st.markdown(f"#### 1. 추세·예측 — {station}")
+        st.write(
+            f"분석 기간 {start_day}일~{end_day}일 기준 PM2.5 평균은 {data['stat_avg']:.1f}㎍/㎥"
+            f"(최고 {data['stat_max']:.1f}, 최저 {data['stat_min']:.1f})이며, 환경기준(35㎍/㎥) "
+            f"초과시간은 {data['stat_over35_hours']}시간({data['stat_over35_ratio']:.1f}%)입니다. "
+            f"향후 {horizon}일 예측 평균은 {data['stat_forecast_avg']:.1f}㎍/㎥입니다."
+        )
+
+    st.markdown(f"#### 2. 미세먼지-통행량 교차분석 — {station2}")
+    st.write(
+        f"{station2}의 시간대별 PM2.5-통행량 패턴 상관계수는 {cross['correlation']*100:.1f}%이며, "
+        f"공통 28개 역 전체 기준 상관계수는 {scatter['correlation']*100:.1f}%입니다."
+    )
+    st.markdown(
+        f"**사분면 기준 예산 투입 우선 검토 대상 {len(priority_df)}개 역:** "
+        + ", ".join(
+            f"{row.station}(PM2.5 {row.avg_pm25:.1f}, 통행량 {int(row.total_traffic):,}명)"
+            for row in priority_df.itertuples()
+        )
+    )
+
+    st.markdown("#### 3. 혼잡도-미세먼지 지도")
+    st.write(f"역사 위치 기준 통행량-PM2.5 상관계수는 {mapdata['correlation']*100:.1f}%입니다.")
+    rc1, rc2 = st.columns(2)
+    with rc1:
+        st.markdown("**통행량 상위 5개 역**")
+        for p in mapdata["top_congestion"]:
+            st.write(f"- {p['station']} — {p['congestion']:,}명/일")
+    with rc2:
+        st.markdown("**PM2.5 상위 5개 역**")
+        for p in mapdata["top_pm25"]:
+            st.write(f"- {p['station']} — {p['avg_pm25']:.1f}㎍/㎥")
+
+    st.info(
+        "본 보고서는 자연어 생성 AI 없이 대시보드에서 계산된 수치를 고정 문장 템플릿에 "
+        "채워 넣는 방식으로 생성됩니다."
+    )
