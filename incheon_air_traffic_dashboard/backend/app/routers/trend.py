@@ -16,6 +16,8 @@ def forecast(
     end_day: int = Query(31, ge=1, le=31),
     model: str = Query("seasonal", pattern="^(seasonal|linear)$"),
     horizon_days: int = Query(7, ge=1, le=30),
+    month: str | None = Query(None, pattern=r"^\d{4}-\d{2}$",
+                               description="PM2.5 기준월(YYYY-MM). 미지정 시 누적 전체 기간 사용"),
     db: Session = Depends(get_db),
 ):
     st = crud.get_station_by_name(db, station)
@@ -24,7 +26,7 @@ def forecast(
     if start_day > end_day:
         raise HTTPException(400, "start_day는 end_day보다 작거나 같아야 합니다.")
 
-    records = crud.get_pm25_records(db, st.id, start_day, end_day)
+    records = crud.get_pm25_records(db, st.id, start_day, end_day, month)
     if not records:
         raise HTTPException(404, "해당 기간의 데이터가 없습니다.")
 

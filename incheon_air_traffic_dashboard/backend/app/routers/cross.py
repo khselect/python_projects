@@ -17,13 +17,13 @@ def _overlap_stations(db: Session):
 
 
 @router.get("/{station}", response_model=schemas.CrossOut)
-def cross_station(station: str, db: Session = Depends(get_db)):
+def cross_station(station: str, period: str | None = None, db: Session = Depends(get_db)):
     st = crud.get_station_by_name(db, station)
     if st is None or not st.has_pm25:
         raise HTTPException(404, f"'{station}' 역은 PM2.5-통행량 공통 데이터가 없습니다.")
 
     pm_hour_avg = crud.get_pm25_hour_avg(db, st.id)
-    traffic = crud.get_traffic(db, st.id)
+    traffic = crud.get_traffic(db, st.id, period)
     board = traffic.get("승차", {}).get("hourly", [])
     alight = traffic.get("하차", {}).get("hourly", [])
     hour_labels = traffic.get("승차", {}).get("hour_labels") or traffic.get("하차", {}).get("hour_labels")
@@ -41,13 +41,13 @@ def cross_station(station: str, db: Session = Depends(get_db)):
 
 
 @router.get("/", response_model=schemas.ScatterOut)
-def cross_scatter(db: Session = Depends(get_db)):
+def cross_scatter(period: str | None = None, db: Session = Depends(get_db)):
     stations = _overlap_stations(db)
     points = []
     for s in stations:
         pm_hour_avg = crud.get_pm25_hour_avg(db, s.id)
         avg_pm = sum(pm_hour_avg.values()) / len(pm_hour_avg) if pm_hour_avg else 0.0
-        total = crud.get_traffic_total(db, s.id)
+        total = crud.get_traffic_total(db, s.id, period)
         points.append(schemas.ScatterPointOut(station=s.name, avg_pm25=avg_pm, total_traffic=total))
 
     corr = analysis.pearson([p.avg_pm25 for p in points], [float(p.total_traffic) for p in points])

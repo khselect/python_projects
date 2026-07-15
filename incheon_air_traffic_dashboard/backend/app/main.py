@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routers import stations, trend, cross, map_
+from .routers import stations, trend, cross, map_, upload, report
 
 app = FastAPI(
     title="인천 1호선 초미세먼지·통행량 통합 분석 API",
@@ -17,9 +17,12 @@ app.add_middleware(
 )
 
 app.include_router(stations.router)
+app.include_router(stations.periods_router)
 app.include_router(trend.router)
 app.include_router(cross.router)
 app.include_router(map_.router)
+app.include_router(upload.router)
+app.include_router(report.router)
 
 
 @app.get("/api/health")

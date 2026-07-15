@@ -1,24 +1,36 @@
 # ------------------------------------------------------------------
-# 기존 cloudflared 터널 설정 파일(보통 ~/.cloudflared/config.yml)의
-# ingress 목록에 아래 규칙을 "맨 앞쪽"(더 구체적인 규칙이 위로)에 추가하세요.
-# 이미 parts.sielain.com 등 다른 서비스가 등록되어 있다면 그 목록에 병합하면 됩니다.
+# ⚠️ 이 파일의 config.yml ingress 방식은 현재 환경에 적용되지 않습니다.
 #
-# 예시 (기존 항목은 실제 값으로 유지):
+# 맥미니의 cloudflared(sielain_tunnel 컨테이너)는 TUNNEL_TOKEN 환경변수로
+# 기동하는 "원격 관리형(remotely-managed)" 터널이라 로컬 config.yml의
+# ingress 규칙이 무시됩니다. (parts.sielain.com 배포 때 확인된 사항 —
+# /Users/sielain/docker/CLAUDE.md 참고)
+#
+# ── air.sielain.com 라우팅 등록 절차 (Cloudflare 대시보드) ──────────
+#
+# 1) 사전 조건: frontend 컨테이너가 터널과 같은 Docker 네트워크에 연결
+#    (docker-compose.yml 의 frontend.networks 에 sielain_net(external,
+#     name: docker_sielain_net) 추가됨 — docker compose up 시 자동 연결)
+#
+# 2) Cloudflare Zero Trust 대시보드에서:
+#    Networks → Tunnels → sielain-tunnel → Published application routes
+#    → Add a published application route
+#       Subdomain : air
+#       Domain    : sielain.com
+#       Type      : HTTP
+#       URL       : air_traffic_frontend:8501
+#    저장하면 DNS CNAME(air.sielain.com → <터널ID>.cfargotunnel.com)이
+#    자동 생성됩니다. 별도의 `cloudflared tunnel route dns` 불필요.
+#
+#    ※ "Hostname routes (Beta)" 탭은 WARP 전용 사설 라우트 — 사용 금지.
+#
+# 3) 확인: https://air.sielain.com 접속 (터널 재시작 불필요, 즉시 반영)
+#
+# ── 참고: 로컬 관리형(config.yml) 터널로 전환하는 경우의 규칙 예시 ──
+# ingress:
+#   - hostname: air.sielain.com
+#     service: http://air_traffic_frontend:8501   # 같은 Docker 네트워크 기준
+#   - hostname: parts.sielain.com
+#     service: http://parts-app:8000
+#   - service: http_status:404
 # ------------------------------------------------------------------
-ingress:
-  - hostname: air.sielain.com
-    service: http://localhost:8501     # docker-compose의 frontend 서비스 포트(.env의 FRONTEND_PORT)와 일치시킬 것
-
-  # --- 기존에 등록되어 있던 다른 서비스 규칙들 (예시, 실제 파일 내용으로 대체) ---
-  # - hostname: parts.sielain.com
-  #   service: http://localhost:XXXX
-
-  - service: http_status:404   # 반드시 마지막 줄(catch-all)에 위치해야 함
-
-# 적용 절차:
-#   1) DNS 레코드 연결(최초 1회):
-#      cloudflared tunnel route dns <터널이름 또는 ID> air.sielain.com
-#   2) config.yml 저장 후 cloudflared 서비스 재시작:
-#      - launchd로 등록되어 있다면: launchctl kickstart -k gui/$(id -u)/com.cloudflare.cloudflared
-#      - 또는 수동 실행 중이라면 프로세스를 종료 후 `cloudflared tunnel run <터널이름>` 재실행
-#   3) https://air.sielain.com 접속 확인

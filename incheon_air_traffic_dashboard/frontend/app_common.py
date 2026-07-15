@@ -21,3 +21,21 @@ def api_get(path: str, params: dict | None = None):
     r = requests.get(f"{BACKEND_URL}{path}", params=params or {}, timeout=20)
     r.raise_for_status()
     return r.json()
+
+
+def api_post_file(path: str, filename: str, file_bytes: bytes, data: dict | None = None):
+    """엑셀 파일 업로드. 백엔드가 4xx로 거절하면 detail 메시지를 RuntimeError로 올린다."""
+    r = requests.post(
+        f"{BACKEND_URL}{path}",
+        files={"file": (filename, file_bytes,
+                         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        data=data or {},
+        timeout=120,
+    )
+    if not r.ok:
+        try:
+            detail = r.json().get("detail", r.text)
+        except ValueError:
+            detail = r.text
+        raise RuntimeError(detail)
+    return r.json()

@@ -109,10 +109,16 @@
         <div style="font-size:11.5px;color:var(--muted);margin-top:4px;">해당 역의 시간대별 통행량-PM2.5 패턴 상관계수</div></div>
     </div>
     <div class="card">
-      <h4>역별 월평균 PM2.5 vs 일 통행량 산점도(28개 역)</h4>
+      <h4>역별 사분면 우선순위 산점도 — PM2.5 vs 월 통행량(공통 역 전체)</h4>
       <div class="chart-wrap small"><canvas id="chart2b"></canvas></div>
+      <div style="font-size:11.5px;color:var(--muted);margin-top:6px;">
+        <span style="color:#2563eb">●</span> 일반 역&nbsp;&nbsp;
+        <span style="color:#dc2626">●</span> 고혼잡·고농도(우선순위 사분면)&nbsp;&nbsp;
+        <span style="color:#0f172a">●</span> 선택역
+      </div>
+      <div id="priorityList" style="font-size:11.5px;margin-top:4px;line-height:1.5;"></div>
       <div class="corr-box"><span class="big" id="corr2all">-</span>
-        <div style="font-size:11.5px;color:var(--muted);margin-top:4px;">전체 28개 역 기준 상관계수(빨간 점=선택역)</div></div>
+        <div style="font-size:11.5px;color:var(--muted);margin-top:4px;">공통 역 전체 기준 상관계수 · 사분면 기준선 = 전체 평균(점선), 우상단 음영 = 우선 관리 구역</div></div>
     </div>
   </div>
 </div>
@@ -395,25 +401,68 @@ function renderTab2(){
     }
   });
 
-  // 산점도: 28개 역 전체
+  // 사분면 우선순위 산점도: 28개 역 전체 — 기준선(전체 평균)으로 4분할,
+  // 우상단(고농도·고혼잡) 사분면을 음영 + 빨간 마커로 강조해 주요 관리역을 드러낸다
   const scatterPts = OVERLAP.map(s=>{
     const avgPm = mean(pmHourAvg(s));
     const b = TR.stations[s]['승차'].total, a = TR.stations[s]['하차'].total;
     return {x: avgPm, y: b+a, station:s};
   });
+  const xm = mean(scatterPts.map(p=>p.x));
+  const ym = mean(scatterPts.map(p=>p.y));
+  const isPri = p => p.x >= xm && p.y >= ym;
+
+  // 사분면 기준선·음영·역명 라벨을 그리는 커스텀 플러그인
+  const quadrantPlugin = {
+    id: 'quadrant',
+    beforeDatasetsDraw(chart){
+      const {ctx, chartArea:{left,right,top,bottom}, scales:{x,y}} = chart;
+      const xt = x.getPixelForValue(xm), yt = y.getPixelForValue(ym);
+      ctx.save();
+      ctx.fillStyle = 'rgba(220,38,38,.07)';
+      ctx.fillRect(xt, top, right - xt, yt - top);
+      ctx.strokeStyle = '#94a3b8'; ctx.setLineDash([4,4]); ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(xt, top); ctx.lineTo(xt, bottom);
+      ctx.moveTo(left, yt); ctx.lineTo(right, yt);
+      ctx.stroke();
+      ctx.restore();
+    },
+    afterDatasetsDraw(chart){
+      const {ctx, scales:{x,y}} = chart;
+      ctx.save(); ctx.textBaseline = 'middle';
+      scatterPts.forEach(p=>{
+        if(p.station === station){ ctx.fillStyle = '#0f172a'; ctx.font = 'bold 10px sans-serif'; }
+        else if(isPri(p)){ ctx.fillStyle = '#dc2626'; ctx.font = 'bold 10px sans-serif'; }
+        else { ctx.fillStyle = '#94a3b8'; ctx.font = '10px sans-serif'; }
+        ctx.fillText(p.station, x.getPixelForValue(p.x) + 7, y.getPixelForValue(p.y));
+      });
+      ctx.restore();
+    }
+  };
+
   const ctxB = document.getElementById('chart2b').getContext('2d');
   if(chart2b) chart2b.destroy();
   chart2b = new Chart(ctxB, {
     type:'scatter',
     data:{ datasets:[
-      {label:'역별(월평균 PM2.5 vs 일 통행량)', data: scatterPts.map(p=>({x:p.x,y:p.y})), backgroundColor: scatterPts.map(p=>p.station===station?'#dc2626':'rgba(37,99,235,.55)'), pointRadius: scatterPts.map(p=>p.station===station?7:4)}
+      {label:'역별(월평균 PM2.5 vs 월 통행량)', data: scatterPts.map(p=>({x:p.x,y:p.y})),
+       backgroundColor: scatterPts.map(p=> p.station===station ? '#0f172a' : isPri(p) ? '#dc2626' : 'rgba(37,99,235,.55)'),
+       pointRadius: scatterPts.map(p=> p.station===station ? 7 : isPri(p) ? 6 : 4)}
     ]},
     options:{
       responsive:true, maintainAspectRatio:false,
-      scales:{ x:{title:{display:true,text:'PM2.5 월평균(㎍/㎥)'}}, y:{title:{display:true,text:'일 통행량 합계(승차+하차, 명)'}} },
-      plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:(c)=> scatterPts[c.dataIndex].station + `: PM2.5 ${fmt1(c.parsed.x)}, 통행량 ${Math.round(c.parsed.y).toLocaleString()}` } } }
-    }
+      scales:{ x:{title:{display:true,text:'PM2.5 월평균(㎍/㎥)'}, suggestedMax: Math.max(...scatterPts.map(p=>p.x))*1.15},
+               y:{title:{display:true,text:'월 통행량 합계(승차+하차, 명)'}} },
+      plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:(c)=> scatterPts[c.dataIndex].station + `: PM2.5 ${fmt1(c.parsed.x)}, 월 통행량 ${Math.round(c.parsed.y).toLocaleString()}` } } }
+    },
+    plugins:[quadrantPlugin]
   });
+  const pri = scatterPts.filter(isPri).sort((a,b)=>b.y-a.y);
+  document.getElementById('priorityList').innerHTML =
+    '<b style="color:#dc2626">주요 관리역</b> (PM2.5·통행량 모두 전체 평균 이상, 통행량순): ' +
+    (pri.length ? pri.map(p=>p.station).join(', ') : '없음') +
+    ` <span style="color:var(--muted)">— 기준선 PM2.5 ${fmt1(xm)}㎍/㎥ · 통행량 ${Math.round(ym).toLocaleString()}명</span>`;
   const rAll = pearson(scatterPts.map(p=>p.x), scatterPts.map(p=>p.y));
   document.getElementById('corr2all').textContent = fmt1(rAll*100)+'%';
 }

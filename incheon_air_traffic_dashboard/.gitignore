@@ -7,3 +7,4 @@ data/*.xls
 *.db
 venv/
 .DS_Store
+data/uploads/

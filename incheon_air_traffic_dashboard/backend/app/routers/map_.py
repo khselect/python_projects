@@ -9,7 +9,7 @@ router = APIRouter(prefix="/api/map", tags=["map"])
 
 
 @router.get("", response_model=schemas.MapOut)
-def map_data(db: Session = Depends(get_db)):
+def map_data(period: str | None = None, db: Session = Depends(get_db)):
     stations = crud.get_all_stations(db)
     points = []
     for s in stations:
@@ -17,7 +17,7 @@ def map_data(db: Session = Depends(get_db)):
         if s.has_pm25:
             hour_avg = crud.get_pm25_hour_avg(db, s.id)
             avg_pm = sum(hour_avg.values()) / len(hour_avg) if hour_avg else None
-        congestion = crud.get_traffic_total(db, s.id)
+        congestion = crud.get_traffic_total(db, s.id, period)
         points.append(schemas.MapPointOut(
             station=s.name, lat=s.lat, lon=s.lon, avg_pm25=avg_pm, congestion=congestion,
         ))

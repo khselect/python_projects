@@ -83,6 +83,44 @@ def parse_traffic(xlsx_path: str) -> tuple[list[str], dict[str, dict[str, list[i
     return hour_labels, out
 
 
+def append_traffic(traffic_path: str, period_label: str):
+    """기존 데이터(역·PM2.5·다른 달 통행량)는 유지하고, 지정한 기준월 통행량만 교체 적재.
+
+    사전에 load()로 최초 적재가 끝나 stations 테이블이 채워져 있어야 한다.
+    """
+    Base.metadata.create_all(bind=engine)
+    hour_labels, traffic = parse_traffic(traffic_path)
+    assert traffic["송도달빛축제공원"]["하차"] and sum(traffic["송도달빛축제공원"]["하차"]) < 1_000_000, \
+        "송도달빛축제공원 하차 합계가 비정상적으로 큽니다 — '1호선 계' 오염 가능성, 파싱 로직을 확인하세요."
+
+    db: Session = SessionLocal()
+    try:
+        station_objs = {s.name: s for s in db.query(models.Station).all()}
+        if not station_objs:
+            raise SystemExit("stations 테이블이 비어 있습니다. 먼저 전체 적재(load)를 실행하세요.")
+
+        db.query(models.TrafficHourly).filter(
+            models.TrafficHourly.period_label == period_label).delete()
+        db.commit()
+
+        tr_count = 0
+        for name, directions in traffic.items():
+            st = station_objs.get(name)
+            if st is None:
+                continue
+            for direction, hourly in directions.items():
+                for h_idx, (label, cnt) in enumerate(zip(hour_labels, hourly)):
+                    db.add(models.TrafficHourly(
+                        station_id=st.id, direction=direction, hour_label=label,
+                        hour_index=h_idx, count=cnt, period_label=period_label,
+                    ))
+                    tr_count += 1
+        db.commit()
+        print(f"추가 적재 완료({period_label}): 통행량 레코드 {tr_count}건")
+    finally:
+        db.close()
+
+
 def load(pm25_path: str, traffic_path: str, period_label: str = "2026-04"):
     Base.metadata.create_all(bind=engine)
 
@@ -141,8 +179,15 @@ def load(pm25_path: str, traffic_path: str, period_label: str = "2026-04"):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="초미세먼지/통행량 엑셀 → PostgreSQL 적재")
-    parser.add_argument("--pm25", required=True, help="초미세먼지 월보 xlsx 경로")
+    parser.add_argument("--pm25", help="초미세먼지 월보 xlsx 경로 (--append 시 생략)")
     parser.add_argument("--traffic", required=True, help="역·시간대별 통행량 xlsx 경로")
     parser.add_argument("--period", default="2026-04", help="통행량 자료 기준 년월 라벨")
+    parser.add_argument("--append", action="store_true",
+                        help="전체 재적재 대신 지정한 기준월 통행량만 추가/교체 (역·PM2.5·다른 달 유지)")
     args = parser.parse_args()
-    load(args.pm25, args.traffic, args.period)
+    if args.append:
+        append_traffic(args.traffic, args.period)
+    else:
+        if not args.pm25:
+            parser.error("--pm25 는 전체 적재 시 필수입니다 (--append 모드에서만 생략 가능)")
+        load(args.pm25, args.traffic, args.period)
