@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import streamlit as st
 
+import json
+
 from pf.config import load_coverage, load_glossary
+from pf.publish.ticker import PUBLISH_DIR
 from pf.settings import offline
 
 DISCLAIMER = (
@@ -21,6 +24,18 @@ def coverage():
 @st.cache_data
 def glossary() -> dict:
     return load_glossary()
+
+
+@st.cache_data(ttl=300)
+def latest_asof() -> str:
+    """게시된 계산 결과 중 가장 최근 기준일."""
+    dates = []
+    for p in PUBLISH_DIR.glob("*.json"):
+        try:
+            dates.append(json.loads(p.read_text(encoding="utf-8"))["asof"])
+        except (OSError, ValueError, KeyError):
+            continue
+    return max(dates) if dates else "—"
 
 
 def tip(key: str) -> str | None:
@@ -45,7 +60,7 @@ def sidebar() -> None:
         )
         st.divider()
         st.caption(f"데이터: {'합성(오프라인)' if offline() else '실데이터'}")
-        st.caption("기준일: —")
+        st.caption(f"기준일: {latest_asof()}")
         st.caption("LLM 호출: 0회")
 
 
