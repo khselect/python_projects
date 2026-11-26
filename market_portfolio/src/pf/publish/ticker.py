@@ -51,13 +51,14 @@ def _history(r: pd.DataFrame) -> list[dict]:
     return [{k: _clean(v) for k, v in row.items()} for row in tail.to_dict("records")]
 
 
-def fetch(source: Source, tickers: list[str], use_cache: bool = False):
+def fetch(source: Source, tickers: list[str], use_cache: bool = False, earnings_for: list[str] | None = None):
+    """시세는 tickers 전부, 실적일은 earnings_for만 (ETF 벤치마크는 실적이 없다)."""
     px = store.load_prices(source.name) if use_cache else None
     if px is None or not set(tickers) <= set(px.columns):
         px = source.prices(tickers)
         store.save_prices(source.name, px)
     earn = {}
-    for t in tickers:
+    for t in earnings_for if earnings_for is not None else tickers:
         e = store.load_earnings(source.name, t) if use_cache else None
         if e is None:
             e = source.earnings(t)
@@ -74,7 +75,7 @@ def publish_group(group_id: str, source: Source | None = None, use_cache: bool =
     source = source or get_source()
 
     tickers = list(dict.fromkeys([*g.members, g.benchmark]))
-    px, earn = fetch(source, tickers, use_cache)
+    px, earn = fetch(source, tickers, use_cache, earnings_for=list(g.members))
     bench = px[g.benchmark]
     asof = px.index[-1]
 
