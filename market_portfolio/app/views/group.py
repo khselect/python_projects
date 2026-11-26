@@ -5,9 +5,10 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from charts import car_chart, month_heatmap
+from charts import car_chart, month_heatmap, valuation_chart, valuation_gap_chart
 from common import coverage, tip
 from pf.publish.group import load_group
+from pf.publish.valuation import load_valuation
 
 
 def pct(v, signed=True):
@@ -22,6 +23,11 @@ def pct(v, signed=True):
 @st.cache_data(ttl=300)
 def group_json(gid: str):
     return load_group(gid)
+
+
+@st.cache_data(ttl=300)
+def valuation_json(gid: str):
+    return load_valuation(gid)
 
 
 def goto_ticker(t: str) -> None:
@@ -108,6 +114,42 @@ annual = pd.DataFrame({
 }).iloc[::-1]
 st.dataframe(annual, hide_index=True, width="stretch")
 st.caption("동일가중 = 매달 초 구성 종목에 같은 비중 (구성 종목 월수익률의 평균). 시가총액가중은 v1에서 추가.")
+
+# ── 밸류에이션: P/E·P/FCF와 괴리 ──────────────────────────
+st.subheader("밸류에이션 — P/E · P/FCF 괴리", help="이익(P/E)과 현금흐름(P/FCF)으로 잰 배수가 벌어지면, 이익만큼 현금이 남지 않는다는 뜻입니다 (예: 설비투자 급증).")
+v = valuation_json(gid)
+cv = (v or {}).get("coverage", {"have": [], "missing": list(g.members)})
+if not v or not v["ttm"]["dates"]:
+    st.info(f"재무제표 수집 중 — {len(cv['have'])}/{len(g.members)}종목. 무료 데이터 한도 때문에 매일 나눠 받습니다(빅테크·반도체 우선).", icon="⏳")
+else:
+    t = v["ttm"]
+    last = lambda k: next((x for x in reversed(t[k]) if x is not None), None)  # noqa: E731
+    k = st.columns(4)
+    k[0].metric("P/E (후행)", f"{last('pe'):.1f}배" if last("pe") else "—")
+    k[1].metric("P/FCF (후행)", f"{last('pfcf'):.1f}배" if last("pfcf") else "—")
+    k[2].metric("괴리", f"{last('gap'):+.1f}배" if last("gap") is not None else "—", help="P/FCF − P/E")
+    k[3].metric("FCF 전환율", f"{last('conv') * 100:.0f}%" if last("conv") is not None else "—",
+                help="FCF ÷ 순이익. 100% 아래로 떨어질수록 이익 대비 남는 현금이 적음")
+    st.plotly_chart(valuation_chart(v), width="stretch", config={"displayModeBar": False})
+    st.caption("괴리 = P/FCF − P/E (0보다 위 = 이익보다 FCF가 적음). 마우스를 올리면 FCF 전환율도 보입니다.")
+    st.plotly_chart(valuation_gap_chart(v), width="stretch", config={"displayModeBar": False})
+    rows = [{
+        "종목": r["ticker"],
+        "P/E": "—" if r.get("missing") or r["pe"] is None else f"{r['pe']:.1f}",
+        "P/FCF": "—" if r.get("missing") or r["pfcf"] is None else f"{r['pfcf']:.1f}",
+        "FCF 전환율": "—" if r.get("missing") or r["conv"] is None else f"{r['conv'] * 100:.0f}%",
+        "설비투자/영업현금": "—" if r.get("missing") or r["capex_share"] is None else f"{r['capex_share'] * 100:.0f}%",
+        "상태": "수집 대기" if r.get("missing") else "",
+    } for r in v["latest"]]
+    st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+    miss = cv["missing"]
+    st.caption(
+        f":gray-background[참고용] 후행 12개월(TTM) 기준 — 분기 실적은 분기 말 {v['params']['report_lag_days']}일 뒤부터 반영. "
+        f"그룹 배수 = Σ시가총액 ÷ Σ이익(또는 FCF), 반영 {len(cv['have'])}/{len(g.members)}종목"
+        + (f" (수집 대기: {', '.join(miss)})" if miss else "")
+        + ". 선행 P/E는 오늘부터 매일 누적(선행 P/FCF는 무료 데이터에 없음). "
+        "재무: Alpha Vantage · 시세: Yahoo — 비공개 운영 단계 전용."
+    )
 
 if st.session_state.pop("_goto", None):
     st.switch_page("views/ticker.py")

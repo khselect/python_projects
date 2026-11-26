@@ -215,3 +215,51 @@ def ratio_chart(m: dict, height: int = 180) -> go.Figure:
     fig.update_layout(showlegend=False, margin=dict(l=8, r=64, t=8, b=8))
     fig.update_xaxes(ticksuffix="", tickformat="%y.%m", range=[m["dates"][0], m["dates"][-1]])
     return fig
+
+
+PE_COLOR, PFCF_COLOR, FWD_COLOR = "#257de0", "#f47230", "#6a4ce2"  # 범주형 1·2·7번 슬롯
+
+
+def _val_range(v: dict) -> list[str]:
+    t, f = v["ttm"], v.get("forward_pe") or {}
+    end = max([t["dates"][-1]] + (f.get("dates") or [])[-1:])
+    return [t["dates"][0], end]
+
+
+def valuation_chart(v: dict, height: int = 300) -> go.Figure:
+    """그룹 후행 P/E·P/FCF (한 축, 둘 다 배수) + 선행 P/E(오늘부터 누적)."""
+    t = v["ttm"]
+    fig = go.Figure()
+    fig.add_scatter(x=t["dates"], y=t["pe"], mode="lines", name="P/E (후행 12개월)", line=dict(color=PE_COLOR, width=2),
+                    hovertemplate="%{x}<br>P/E %{y:.1f}배<extra></extra>")
+    fig.add_scatter(x=t["dates"], y=t["pfcf"], mode="lines", name="P/FCF (후행 12개월)", line=dict(color=PFCF_COLOR, width=2),
+                    hovertemplate="%{x}<br>P/FCF %{y:.1f}배<extra></extra>")
+    f = v.get("forward_pe") or {}
+    if f.get("values"):
+        fig.add_scatter(x=f["dates"], y=f["values"], mode="lines+markers", name="선행 P/E (누적 중)",
+                        line=dict(color=FWD_COLOR, width=2, dash="dot"), marker=dict(size=8),
+                        hovertemplate="%{x}<br>선행 P/E %{y:.1f}배<extra></extra>")
+    for name, ys, col in (("P/E", t["pe"], PE_COLOR), ("P/FCF", t["pfcf"], PFCF_COLOR)):
+        last = next((y for y in reversed(ys) if y is not None), None)
+        if last is not None:
+            fig.add_annotation(x=t["dates"][-1], y=last, text=f"{name} {last:.1f}", showarrow=False, xanchor="left",
+                               xshift=4, font=dict(size=11, color=col))
+    fig = _layout(fig, height, "", "배수 (배)")
+    fig.update_layout(margin=dict(l=8, r=76, t=36, b=8), hovermode="x unified")
+    fig.update_xaxes(ticksuffix="", tickformat="%y", range=_val_range(v))
+    return fig
+
+
+def valuation_gap_chart(v: dict, height: int = 200) -> go.Figure:
+    """괴리 = P/FCF − P/E. 0보다 크면 이익보다 FCF가 적은 상태, 커질수록 이익과 현금의 괴리 확대."""
+    t = v["ttm"]
+    conv = [None if c is None else c * 100 for c in t["conv"]]
+    fig = go.Figure()
+    fig.add_scatter(x=t["dates"], y=t["gap"], mode="lines", name="괴리 (P/FCF − P/E)", fill="tozeroy",
+                    line=dict(color=PFCF_COLOR, width=1.5), fillcolor="rgba(244,114,48,0.15)", customdata=conv,
+                    hovertemplate="%{x}<br>괴리 %{y:+.1f}배<br>FCF 전환율 %{customdata:.0f}%<extra></extra>")
+    fig.add_hline(y=0, line=dict(color=INK, width=1))
+    fig = _layout(fig, height, "", "P/FCF − P/E")
+    fig.update_layout(showlegend=False, margin=dict(l=8, r=76, t=8, b=8))
+    fig.update_xaxes(ticksuffix="", tickformat="%y", range=_val_range(v))
+    return fig

@@ -31,6 +31,14 @@ class Source:
     def earnings(self, ticker: str) -> pd.DataFrame:
         raise NotImplementedError
 
+    def close_and_splits(self, tickers: list[str], start: str = "2014-01-01") -> tuple[pd.DataFrame, dict[str, pd.Series]]:
+        """밸류에이션용: 분할만 반영한 종가(배당 미반영)와 종목별 분할 이력."""
+        raise NotImplementedError
+
+    def forward_snapshot(self, tickers: list[str]) -> pd.DataFrame:
+        """오늘의 종목별 시가총액·선행 P/E. index=ticker, columns=[market_cap, forward_pe]."""
+        raise NotImplementedError
+
 
 # ── 합성 데이터 ─────────────────────────────────────────────
 def _seed(name: str) -> int:
@@ -101,6 +109,16 @@ class SyntheticSource(Source):
                     ret[j] += m[k] + s[k] * erng.standard_t(6)
             out[t] = 100 * np.exp(np.cumsum(np.log1p(np.clip(ret, -0.6, None))))
         return pd.DataFrame(out, index=days)
+
+    def close_and_splits(self, tickers, start="2014-01-01"):
+        return self.prices(tickers, start), {}
+
+    def forward_snapshot(self, tickers):
+        rows = {}
+        for t in tickers:
+            rng = np.random.default_rng(_seed(t + "#fwd"))
+            rows[t] = {"market_cap": 1e11 * (1 + 20 * rng.random()), "forward_pe": 18 + 20 * rng.random()}
+        return pd.DataFrame.from_dict(rows, orient="index")
 
     def earnings(self, ticker: str) -> pd.DataFrame:
         days = self._calendar("2012-01-01")
@@ -186,6 +204,42 @@ class YahooSource(Source):
             }
         )
         return out.drop_duplicates("date").sort_values("date").reset_index(drop=True)
+
+
+def _yahoo_close_and_splits(tickers: list[str], start: str) -> tuple[pd.DataFrame, dict[str, pd.Series]]:
+    import yfinance as yf
+
+    raw = yf.download(tickers, start=start, auto_adjust=False, progress=False, threads=True)
+    close = raw["Close"] if isinstance(raw.columns, pd.MultiIndex) else raw[["Close"]].set_axis(tickers, axis=1)
+    close.index = pd.DatetimeIndex(close.index).tz_localize(None).normalize()
+    splits = {}
+    for t in tickers:
+        try:
+            sp = yf.Ticker(t).splits
+            if sp is not None and len(sp):
+                sp.index = pd.DatetimeIndex(sp.index).tz_localize(None)
+                splits[t] = sp
+        except Exception:
+            pass
+    return close.reindex(columns=tickers), splits
+
+
+def _yahoo_forward_snapshot(tickers: list[str]) -> pd.DataFrame:
+    import yfinance as yf
+
+    rows = {}
+    for t in tickers:
+        try:
+            info = yf.Ticker(t).info or {}
+            rows[t] = {"market_cap": float(info.get("marketCap") or np.nan),
+                       "forward_pe": float(info.get("forwardPE") or np.nan)}
+        except Exception:
+            continue
+    return pd.DataFrame.from_dict(rows, orient="index", columns=["market_cap", "forward_pe"])
+
+
+YahooSource.close_and_splits = lambda self, tickers, start="2014-01-01": _yahoo_close_and_splits(tickers, start)
+YahooSource.forward_snapshot = lambda self, tickers: _yahoo_forward_snapshot(tickers)
 
 
 def get_source() -> Source:

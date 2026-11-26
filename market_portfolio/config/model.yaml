@@ -26,3 +26,10 @@ macro:
     liquidity_gap: 0.5       # 유동성: GDP 전년비 − 기준금리가 0~0.5%p
     credit_d3m: 0.10         # 신용: 하이일드 스프레드 3개월 변화 ±0.10%p 이내
     curve_flat: 0.25         # 금리곡선: 역전 해소 6개월 후에도 10Y−2Y가 0~0.25%p
+
+valuation:                   # ③ 밸류에이션 (후행 P/E·P/FCF, 선행 P/E 누적)
+  start: "2016-01-01"        # 그래프 시작 (TTM 4분기 확보 후)
+  av_daily_calls: 20         # Alpha Vantage 무료 25회/일 중 사용량 (종목당 2회)
+  max_age_days: 90           # 재무제표 다시 받는 주기
+  report_lag_days: 45        # 분기 말 → 반영일 (미래 정보 누수 방지)
+  priority: [bigtech, semis] # 먼저 채울 그룹

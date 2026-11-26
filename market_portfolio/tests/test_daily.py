@@ -28,6 +28,13 @@ def tmp_data(tmp_path, monkeypatch):
 
     monkeypatch.setattr(gpub, "GROUP_DIR", tmp_path / "publish" / "group")
     monkeypatch.setattr(gpub, "CALENDAR_PATH", tmp_path / "publish" / "calendar.json")
+    import pf.data.fundamentals as F
+    import pf.publish.valuation as PV
+    import pf.valuation as V
+
+    monkeypatch.setattr(F, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(V, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(PV, "VAL_DIR", tmp_path / "publish" / "valuation")
     cfg = load_model()
     cfg["simulation"]["n_iter"] = 20_000  # 테스트 속도
     monkeypatch.setattr(pub, "load_model", lambda: cfg)
@@ -41,6 +48,7 @@ def test_daily_publishes_all_industry_groups(tmp_data):
     assert st["ok"] and len(st["groups"]) == 10 and st["macro"]["ok"]
     assert (tmp_data / "publish" / "macro.json").exists()
     assert st["group_pages"]["ok"]
+    assert st["valuation"]["ok"] and st["valuation"]["queue"]["calls"] == 20  # 하루 예산만큼만
     groups = sorted(p.stem for p in (tmp_data / "publish" / "group").glob("*.json"))
     assert len(groups) == 11 and "bigtech" in groups  # 산업 10 + 테마 1
     g = json.loads((tmp_data / "publish" / "group" / "semis.json").read_text(encoding="utf-8"))

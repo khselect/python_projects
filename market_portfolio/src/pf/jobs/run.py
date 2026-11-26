@@ -93,6 +93,12 @@ def daily() -> int:
         macro = {"ok": True}
     except Exception as e:  # FRED 키 누락·수집 실패가 종목 계산 결과를 막지 않게
         macro = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+    try:  # 밸류에이션 (재무제표 대기열 + 선행 P/E 누적) — 실패해도 나머지 결과는 유지
+        from pf.publish.valuation import publish_valuation
+
+        val = {"ok": True, **publish_valuation()}
+    except Exception as e:
+        val = {"ok": False, "error": f"{type(e).__name__}: {e}"}
     recorded, rec_err = [], {}
     for t in due_events() if "error" not in res else []:
         try:
@@ -109,6 +115,7 @@ def daily() -> int:
     status = {
         **res,
         "macro": macro,
+        "valuation": val,
         "warnings": warnings,
         "code_hash": code_hash(),
         "ok": ok,
@@ -130,6 +137,13 @@ def daily() -> int:
         print(f"  ❌ 수집 실패: {res['error']}")
     if not res.get("group_pages", {"ok": True})["ok"]:
         print(f"  ❌ 그룹·캘린더: {res['group_pages']['error']}")
+    if val.get("ok"):
+        q = val.get("queue") or {}
+        print(f"  밸류에이션: 재무 {val.get('have', 0)}/{val.get('total', 0)}종목"
+              + (f" · 오늘 받음 {', '.join(q.get('fetched', []))}" if q.get("fetched") else "")
+              + (f" · ⚠️ {q['stopped']}" if q.get("stopped") else ""))
+    else:
+        print(f"  ⚠️ 밸류에이션: {val['error']} (다른 결과에는 영향 없음)")
     if not macro["ok"]:
         print(f"  ❌ 매크로: {macro['error']}")
     return 0 if ok else 1
