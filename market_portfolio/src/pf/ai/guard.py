@@ -48,8 +48,12 @@ def allowed(evidence: str) -> tuple[set[float], set[str]]:
     return nums, dates
 
 
-def check(answer: str, evidence: str) -> list[str]:
-    """문제 목록. 비어 있으면 통과."""
+def check(answer: str, evidence: str, loss: list[str] | None = None) -> list[str]:
+    """문제 목록. 비어 있으면 통과.
+
+    loss: 손실 쪽 숫자(90% 하단·CVaR 등 근거 표기 그대로). 주어지면 답변에 하나 이상 있어야 한다
+    (사이트 원칙: 확률·기대값과 손실 쪽 숫자를 함께 — 프롬프트만으로는 지켜지지 않음, 11-26 실측).
+    """
     issues = []
     text = answer.strip()
     if len(text) < MIN_CHARS:
@@ -66,6 +70,10 @@ def check(answer: str, evidence: str) -> list[str]:
     bad = [n for n in _numbers(text) if not any(abs(n - a) <= TOL for a in nums)]
     if bad:
         issues.append("근거에 없는 숫자: " + ", ".join(f"{n:g}" for n in dict.fromkeys(bad)))
+    if loss:
+        want = {abs(v) for l in loss for v in _numbers(l)}
+        if not any(any(abs(n - w) <= TOL for w in want) for n in _numbers(text)):
+            issues.append("손실 쪽 숫자 없음 (90% 구간 하단: " + ", ".join(loss[:3]) + ")")
     return issues
 
 

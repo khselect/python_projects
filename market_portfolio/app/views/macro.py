@@ -10,6 +10,7 @@ import streamlit as st
 from charts import market_compare, ratio_chart, regime_history
 from common import tip
 from pf.macro.publish import MACRO_PATH
+from pf.synth.rules import fmt_score
 
 SIG = {1.0: "▲ 우호", 0.0: "● 중립", -1.0: "▼ 비우호", None: "— 신호 없음"}
 SIG_COLOR = {"▲ 우호": "#1757ac", "● 중립": "#666666", "▼ 비우호": "#c22b2c", "— 신호 없음": "#999999"}
@@ -57,7 +58,7 @@ if d is None:
 
 # ── 국면 배너 ────────────────────────────────────────────
 c1, c2, c3 = st.columns([1, 1, 2])
-c1.metric("국면 점수", f"{d['score']:+d}", help=tip("regime_score"))
+c1.metric("국면 점수", fmt_score(d['score']), help=tip("regime_score"))
 c2.metric("국면", d["regime"], help="+3 이상 확장 · −3 이하 위험회피 · 그 사이 중립·전환")
 c3.markdown(
     f"**{d['regime_since']}**부터 이 국면  \n"
@@ -70,7 +71,7 @@ if "compare_base" not in st.session_state:
 base_label = st.segmented_control("비교 기준", ["3개월 전", "6개월 전", "1년 전"], key="compare_base")
 months = {"3개월 전": "3", "6개월 전": "6", "1년 전": "12"}[base_label or "6개월 전"]
 cmp = d["compare"][months]
-st.caption(f"{base_label} ({cmp['date']}): 국면 점수 {cmp['score']:+d} · {cmp['regime']}  →  현재 {d['score']:+d} · {d['regime']}")
+st.caption(f"{base_label} ({cmp['date']}): 국면 점수 {fmt_score(cmp['score'])} · {cmp['regime']}  →  현재 {fmt_score(d['score'])} · {d['regime']}")
 
 # ── 지표 체크리스트 ───────────────────────────────────────
 rows = []

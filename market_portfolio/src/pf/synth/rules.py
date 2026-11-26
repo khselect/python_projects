@@ -49,6 +49,11 @@ class Verdict:
     layers: list[Layer] = field(default_factory=list)
 
 
+def fmt_score(s: int) -> str:
+    """국면 점수 표기: 0은 부호 없이 ('+0' 방지)."""
+    return "0" if s == 0 else f"{s:+d}"
+
+
 def _pct(v: float) -> str:
     x = round(v * 100, 1)
     return "0.0%" if x == 0 else f"{x:+.1f}%"
@@ -59,7 +64,7 @@ def macro_layer(macro: dict | None, hi: int = 3, lo: int = -3) -> Layer:
         return Layer("macro", "매크로", None, "매크로 계산 결과 없음")
     s = macro["score"]
     v = 1 if s >= hi else (-1 if s <= lo else 0)
-    return Layer("macro", "매크로", v, f"국면 점수 {s:+d} · {macro['regime']} ({macro['regime_since']}부터)")
+    return Layer("macro", "매크로", v, f"국면 점수 {fmt_score(s)} · {macro['regime']} ({macro['regime_since']}부터)")
 
 
 def group_layer(group: dict | None) -> Layer:

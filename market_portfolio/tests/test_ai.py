@@ -185,3 +185,37 @@ def test_one_bad_context_does_not_stop_others(tmp_data_ai, monkeypatch):
     monkeypatch.setattr(AP, "group_digest", boom)
     s = AP.pregenerate(FakeLLM())
     assert "semis" in s["digest_errors"] and s["n"] >= 11
+
+
+def test_guard_requires_loss_side_number():
+    """맥미니 실측(11-26): 12b가 확률·중앙값만 쓰고 90% 하단을 빠뜨림 → 코드로 강제."""
+    no_loss = "PG는 2026-12-04 실적 뒤 다음 날 상승 확률이 67%, 하락 확률이 33%이며 기대값은 +1.9%입니다."
+    assert any(i.startswith("손실 쪽 숫자 없음") for i in guard.check(no_loss, EV, ["-7.3%"]))
+    assert guard.check(GOOD, EV, ["-7.3%"]) == []
+    assert guard.check(no_loss, EV) == []  # loss 미지정(매크로 등)이면 검사 안 함
+
+
+def test_retry_feedback_mentions_missing_loss():
+    d = Digest(D.kind, D.key, D.title, D.asof, D.facts, loss=["-7.3%"])
+    no_loss = "PG는 2026-12-04 실적 뒤 다음 날 상승 확률이 67%, 하락 확률이 33%이며 기대값은 +1.9%입니다."
+    llm = Scripted(no_loss, GOOD)
+    assert generate_one(llm, d, CFG)["mode"] == "ai"
+    assert "손실 쪽 숫자 없음" in llm.calls[1]
+
+
+def test_group_digest_separates_benchmark_and_score_format(tmp_data_ai):
+    import json as _j
+
+    import pf.macro.publish as mpub
+    from pf.ai.digest import group_digest, macro_digest
+    from pf.publish.group import load_group
+    from pf.synth.rules import fmt_score
+
+    d = group_digest(load_group("semis"))
+    assert d.facts[0] == "반도체 그룹 구성 종목: NVDA, AVGO, AMD, MU, QCOM"
+    assert "구성 종목이 아님" in d.facts[1] and d.loss
+    assert template_text(d) and guard.check(template_text(d), d.text(), d.loss) == []
+    m = _j.loads(mpub.MACRO_PATH.read_text(encoding="utf-8"))
+    m["score"] = 0
+    assert "국면 점수 0 (" in macro_digest(m).facts[0]
+    assert fmt_score(0) == "0" and fmt_score(3) == "+3" and fmt_score(-2) == "-2"

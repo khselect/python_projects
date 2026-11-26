@@ -11,7 +11,7 @@ import json
 from dataclasses import asdict, dataclass, field
 
 from pf.config import load_glossary
-from pf.synth.rules import synthesize
+from pf.synth.rules import fmt_score, synthesize
 
 SIGNAL = {1.0: "우호", 0.0: "중립", -1.0: "비우호"}
 
@@ -25,6 +25,7 @@ class Digest:
     facts: list[str]
     terms: list[str] = field(default_factory=list)
     sources: list[str] = field(default_factory=list)
+    loss: list[str] = field(default_factory=list)  # 손실 쪽 숫자(90% 하단·CVaR). 답변에 하나 이상 있어야 통과
 
     def text(self) -> str:
         lines = [f"[화면] {self.title} (기준일 {self.asof})", "[근거]"]
@@ -90,14 +91,14 @@ def macro_digest(macro: dict) -> Digest:
     inds = macro["indicators"]
     cnt = {lab: sum(1 for i in inds if SIGNAL.get(i["signal"]) == lab) for lab in ("우호", "중립", "비우호")}
     facts = [
-        f"국면 점수 {macro['score']:+d} (범위 −6~+6), 국면 '{macro['regime']}', {macro['regime_since']}부터",
+        f"국면 점수 {fmt_score(macro['score'])} (범위 −6~+6), 국면 '{macro['regime']}', {macro['regime_since']}부터",
         f"{len(inds)}개 지표 중 우호 {cnt['우호']}개, 중립 {cnt['중립']}개, 비우호 {cnt['비우호']}개",
     ]
     facts += [_indicator_fact(i) for i in inds]
     for m in ("3", "6", "12"):
         c = (macro.get("compare") or {}).get(m)
         if c:
-            facts.append(f"{m}개월 전({c['date']}) 국면 점수 {c['score']:+d}, '{c['regime']}'")
+            facts.append(f"{m}개월 전({c['date']}) 국면 점수 {fmt_score(c['score'])}, '{c['regime']}'")
     mk = macro.get("markets")
     if mk and mk.get("change"):
         chg = ", ".join(f"{mk['names'][k]} {pct(v)}" for k, v in mk["change"].items())
@@ -140,9 +141,12 @@ def group_digest(group: dict, valuation: dict | None = None, macro: dict | None 
     car = group["car"]
     c21 = car.get("car21") or {}
     facts = [
-        f"{g['name']} 그룹, 구성 {', '.join(g['members'])}, 벤치마크 {g['benchmark']}",
+        f"{g['name']} 그룹 구성 종목: {', '.join(g['members'])}",
+        f"비교 기준(벤치마크): {g['benchmark']} ETF — 구성 종목이 아님",
     ]
+    loss = []
     if c21:
+        loss.append(pct(c21["p5"]))
         facts.append(
             f"과거 실적 후 21일 초과수익 중앙값 {pct(c21['median'])}, 90% 구간 {pct(c21['p5'])} ~ {pct(c21['p95'])}, "
             f"하락 비율 {prob(c21['p_down'])}, 표본 {c21['n']}건 ({car['first']} ~ {car['last']})")
@@ -156,6 +160,7 @@ def group_digest(group: dict, valuation: dict | None = None, macro: dict | None 
         if u.get("p_down") is None or u.get("p5") is None:
             facts.append(f"다가오는 실적: {u['ticker']} {u['date']} {u['timing']} ({u['days']}일 남음)")
             continue
+        loss.append(pct(u["p5"]))
         facts.append(f"다가오는 실적: {u['ticker']} {u['date']} {u['timing']} ({u['days']}일 남음), "
                      f"다음 날 하락 확률 {prob(u['p_down'])}, 90% 하단 {pct(u['p5'])}")
     facts += _valuation_facts(valuation)
@@ -165,6 +170,7 @@ def group_digest(group: dict, valuation: dict | None = None, macro: dict | None 
         _terms(["car", "interval90", "regime_score"]),
         [f"group/{g['id']}.json ({group['asof']})"] + ([f"valuation/{g['id']}.json"] if valuation else [])
         + (["macro.json"] if macro else []),
+        loss,
     )
 
 
@@ -190,6 +196,7 @@ def ticker_digest(t: dict, group: dict | None = None, macro: dict | None = None)
         "ticker", t["ticker"], f"④ 종목 상세 — {t['ticker']}", t["asof"], facts,
         _terms(["p_down", "interval90"]),
         [f"ticker/{t['ticker']}.json ({t['asof']})"],
+        [pct(h1["pcts"]["5"]), pct(h1["cvar5"])],
     )
 
 

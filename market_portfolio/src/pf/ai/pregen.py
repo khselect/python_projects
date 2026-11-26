@@ -24,15 +24,17 @@ from pf.publish.ticker import PUBLISH_DIR, _write_json
 from pf.publish.valuation import load_valuation
 
 AI_DIR = PUBLISH_DIR.parent / "ai"
-PROMPT_VERSION = 1  # 프롬프트를 바꾸면 올린다 → 근거가 같아도 다시 생성
+PROMPT_VERSION = 2  # 프롬프트를 바꾸면 올린다 → 근거가 같아도 다시 생성
 
 SYSTEM = """너는 market.sielain.com 대시보드의 해설 도우미다. 사용자가 보고 있는 화면을 [근거]의 사실만으로 한국어로 풀어 설명한다.
 규칙:
 1. 숫자와 날짜는 [근거]에 적힌 값을 그대로 옮긴다. 계산하거나 반올림을 바꾸거나 새 숫자를 만들지 않는다.
 2. [근거]에 없는 뉴스·사건·전망·원인을 덧붙이지 않는다.
 3. 투자 행동(매수·매도·비중·목표가)을 권하지 않는다. 명령형 표현과 '반드시', '확실히', '보장'을 쓰지 않는다.
-4. 기대값이나 확률을 말하면 손실 쪽 숫자(90% 구간 하단 등)도 함께 말한다.
-5. 서술형 '~입니다'체, 3~5문장, 제목·목록·마크다운 없이 문단 하나로 쓴다."""
+4. 중앙값·기대값·확률을 말할 때는 같은 항목의 90% 구간 하단(손실 쪽 숫자)도 함께 적는다.
+5. 벤치마크는 비교 기준이며 구성 종목이 아니다.
+6. '현재 화면은' 같은 화면 소개 없이 수치가 뜻하는 바부터 쓴다.
+7. 서술형 '~입니다'체, 3~5문장, 제목·목록·마크다운 없이 문단 하나로 쓴다."""
 
 USER_TAIL = "\n\n위 근거만 사용해 이 화면의 현재 상태를 3~5문장으로 해설하라."
 
@@ -103,7 +105,7 @@ def generate_one(client, d: Digest, cfg: dict) -> dict:
         except LLMError as e:
             attempts.append({"error": str(e)})
             break  # 연결·시간 초과는 재시도해도 같다
-        issues = guard.check(r.text, ev)
+        issues = guard.check(r.text, ev, d.loss)
         attempts.append({"issues": issues, "seconds": r.seconds, "tokens": r.eval_count, "tok_per_s": r.tok_per_s})
         if not issues:
             return {"mode": "ai", "text": r.text, "model": r.model, "attempts": attempts}
