@@ -27,8 +27,12 @@ def load_prices(source: str) -> pd.DataFrame | None:
     return pd.read_parquet(p) if p.exists() else None
 
 
+def earnings_path(source: str, ticker: str) -> Path:
+    return _dir(source) / f"earnings_{ticker}.parquet"
+
+
 def save_earnings(source: str, ticker: str, df: pd.DataFrame) -> Path:
-    p = _dir(source) / f"earnings_{ticker}.parquet"
+    p = earnings_path(source, ticker)
     df.to_parquet(p)
     return p
 

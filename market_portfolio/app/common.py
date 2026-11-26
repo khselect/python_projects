@@ -38,6 +38,21 @@ def latest_asof() -> str:
     return max(dates) if dates else "—"
 
 
+@st.cache_data(ttl=300)
+def batch_status() -> str:
+    """마지막 매일 배치 결과 한 줄 (data/publish/status.json)."""
+    p = PUBLISH_DIR.parent / "status.json"
+    try:
+        st_ = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return "배치: 기록 없음"
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    done = datetime.fromisoformat(st_["finished_at"]).astimezone(ZoneInfo("Asia/Seoul"))
+    return f"배치: {done:%m-%d %H:%M} {'정상' if st_.get('ok') else '실패 있음'}"
+
+
 def tip(key: str) -> str | None:
     """glossary.yaml의 한 줄 툴팁 (help= 인자용)."""
     item = glossary().get(key)
@@ -61,6 +76,7 @@ def sidebar() -> None:
         st.divider()
         st.caption(f"데이터: {'합성(오프라인)' if offline() else '실데이터'}")
         st.caption(f"기준일: {latest_asof()}")
+        st.caption(batch_status())
         st.caption("LLM 호출: 0회")
 
 

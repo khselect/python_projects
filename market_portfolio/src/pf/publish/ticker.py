@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import time
 import zlib
 from datetime import datetime, timezone
 from pathlib import Path
@@ -51,6 +53,24 @@ def _history(r: pd.DataFrame) -> list[dict]:
     return [{k: _clean(v) for k, v in row.items()} for row in tail.to_dict("records")]
 
 
+def _write_json(path: Path, payload: dict, **kw) -> None:
+    """임시 파일에 쓴 뒤 교체 — 화면이 읽는 도중 반쯤 쓰인 파일을 보지 않게."""
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(payload, ensure_ascii=False, **kw), encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def fetch_earnings(source: Source, ticker: str, max_age_days: float | None = None) -> pd.DataFrame:
+    """실적일 표. max_age_days 안에 저장한 캐시가 있으면 재사용 (실적일은 자주 바뀌지 않는다)."""
+    if max_age_days is not None:
+        p = store.earnings_path(source.name, ticker)
+        if p.exists() and time.time() - p.stat().st_mtime < max_age_days * 86400:
+            return store.load_earnings(source.name, ticker)
+    e = source.earnings(ticker)
+    store.save_earnings(source.name, ticker, e)
+    return e
+
+
 def fetch(source: Source, tickers: list[str], use_cache: bool = False, earnings_for: list[str] | None = None):
     """시세는 tickers 전부, 실적일은 earnings_for만 (ETF 벤치마크는 실적이 없다)."""
     px = store.load_prices(source.name) if use_cache else None
@@ -59,15 +79,18 @@ def fetch(source: Source, tickers: list[str], use_cache: bool = False, earnings_
         store.save_prices(source.name, px)
     earn = {}
     for t in earnings_for if earnings_for is not None else tickers:
-        e = store.load_earnings(source.name, t) if use_cache else None
-        if e is None:
-            e = source.earnings(t)
-            store.save_earnings(source.name, t, e)
-        earn[t] = e
+        earn[t] = fetch_earnings(source, t, max_age_days=float("inf") if use_cache else None)
     return px, earn
 
 
-def publish_group(group_id: str, source: Source | None = None, use_cache: bool = False) -> list[Path]:
+def publish_group(
+    group_id: str,
+    source: Source | None = None,
+    use_cache: bool = False,
+    px: pd.DataFrame | None = None,
+    earnings_max_age_days: float | None = None,
+) -> list[Path]:
+    """그룹 계산·게시. px를 주면 시세를 다시 받지 않는다 (publish_all에서 한 번에 받은 시세)."""
     cov = load_coverage()
     cfg = load_model()
     sim_cfg, mix_cfg, gate = cfg["simulation"], cfg["mixture"], cfg["calibration_gate"]
@@ -75,7 +98,11 @@ def publish_group(group_id: str, source: Source | None = None, use_cache: bool =
     source = source or get_source()
 
     tickers = list(dict.fromkeys([*g.members, g.benchmark]))
-    px, earn = fetch(source, tickers, use_cache, earnings_for=list(g.members))
+    if px is None:
+        px, earn = fetch(source, tickers, use_cache, earnings_for=list(g.members))
+    else:
+        px = px[tickers].dropna(how="all")
+        earn = {t: fetch_earnings(source, t, earnings_max_age_days) for t in g.members}
     bench = px[g.benchmark]
     asof = px.index[-1]
 
@@ -135,9 +162,42 @@ def publish_group(group_id: str, source: Source | None = None, use_cache: bool =
             },
         }
         p = PUBLISH_DIR / f"{t}.json"
-        p.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        _write_json(p, payload, separators=(",", ":"))
         written.append(p)
     return written
+
+
+def publish_all(source: Source | None = None, earnings_max_age_days: float = 3) -> dict:
+    """산업 그룹 전체. 시세는 한 번에 받고, 실적일은 max_age 안의 캐시를 재사용한다."""
+    cov = load_coverage()
+    source = source or get_source()
+    tickers = list(dict.fromkeys([t for g in cov.industry for t in (*g.members, g.benchmark)]))
+    t0 = time.perf_counter()
+    px = source.prices(tickers)
+    store.save_prices(source.name, px)
+    result = {"source": source.name, "asof": px.index[-1].date().isoformat(), "groups": {}}
+    for g in cov.industry:
+        try:
+            paths = publish_group(g.id, source, px=px, earnings_max_age_days=earnings_max_age_days)
+            result["groups"][g.id] = {"ok": True, "tickers": [p.stem for p in paths]}
+        except Exception as e:  # 한 그룹 실패가 나머지를 막지 않게
+            result["groups"][g.id] = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+    result["seconds"] = round(time.perf_counter() - t0, 1)
+    return result
+
+
+def due_events(min_days: int = 1, max_days: int = 5) -> list[str]:
+    """게시 결과 중 다음 실적이 기준일로부터 min~max일 남은 종목."""
+    out = []
+    for p in sorted(PUBLISH_DIR.glob("*.json")):
+        d = json.loads(p.read_text(encoding="utf-8"))
+        ev = d.get("next_event")
+        if not ev:
+            continue
+        days = (pd.Timestamp(ev["date"]) - pd.Timestamp(d["asof"])).days
+        if min_days <= days <= max_days:
+            out.append(d["ticker"])
+    return out
 
 
 def load_published(ticker: str) -> dict | None:
@@ -168,5 +228,5 @@ def record_prediction(ticker: str) -> Path:
         "forecast": {h: {k: v for k, v in s.items() if k != "hist"} for h, s in pub["sim"]["horizons"].items()},
         "outcome": None,  # 실적 후 채움
     }
-    p.write_text(json.dumps(rec, ensure_ascii=False, indent=1), encoding="utf-8")
+    _write_json(p, rec, indent=1)
     return p

@@ -35,11 +35,13 @@ PYTHONPATH=src streamlit run app/main.py      # PF_OFFLINE=1(기본) → 합성 
 
 ## 배치 명령
 ```
+python -m pf.jobs.run daily                              # 매일 배치: 산업 그룹 10개 + 실적 1~5일 전 예측 기록
 python -m pf.jobs.run publish --group semis [--cache]   # 그룹 실적 반응 계산 → data/publish/ticker/*.json
 python -m pf.jobs.run show AVGO                          # 게시 결과 요약 (Claude에는 이것만 보여준다)
 python -m pf.jobs.run record AVGO                        # 실적 전 예측 기록 → data/predictions/
 ```
 - 운영: `docker compose exec market-app python -m pf.jobs.run ...` (`/Users/sielain/docker`에서)
+- 매일 07:15 KST `market-jobs` 컨테이너(`pf.jobs.scheduler`)가 `daily` 실행. 결과 `data/publish/status.json`
 - 모델: `pf.events.reactions`(반응일·β 조정 초과수익) → `pf.sim.mixture`(3성분 t 혼합 MAP-EM, 그룹 축소) → `pf.sim.reaction_mc`(40만 회)
 
 ## MVP 순서 (PLAN.md §13)

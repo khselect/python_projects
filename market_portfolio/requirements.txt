@@ -5,3 +5,4 @@ plotly==5.24.1
 PyYAML==6.0.2
 pyarrow==26.0.1
 yfinance==1.8.0
+tzdata==2025.2

@@ -1,5 +1,6 @@
 """배치 명령.
 
+  python -m pf.jobs.run daily                                매일 배치: 산업 그룹 10개 전체 계산 + 실적 1~5일 전 종목 예측 기록
   python -m pf.jobs.run publish [--group semis] [--cache]   그룹 실적 반응 계산·게시
   python -m pf.jobs.run record AVGO                          실적 전 예측 기록 보관
   python -m pf.jobs.run show AVGO                            게시 JSON 요약 출력 (digest)
@@ -13,7 +14,18 @@ import argparse
 import sys
 import time
 
-from pf.publish.ticker import load_published, publish_group, record_prediction
+import json
+from datetime import datetime, timezone
+
+from pf.publish.ticker import (
+    PUBLISH_DIR,
+    _write_json,
+    due_events,
+    load_published,
+    publish_all,
+    publish_group,
+    record_prediction,
+)
 from pf.settings import offline
 
 
@@ -43,9 +55,51 @@ def show(ticker: str) -> int:
     return 0
 
 
+STATUS = PUBLISH_DIR.parent / "status.json"
+
+
+def daily() -> int:
+    """매일 배치. 결과는 data/publish/status.json (화면 사이드바·점검용)."""
+    started = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    try:
+        res = publish_all()
+    except Exception as e:  # 시세 수집 자체가 실패한 경우
+        res = {"groups": {}, "error": f"{type(e).__name__}: {e}"}
+    recorded, rec_err = [], {}
+    for t in due_events() if "error" not in res else []:
+        try:
+            recorded.append(record_prediction(t).name)
+        except Exception as e:
+            rec_err[t] = f"{type(e).__name__}: {e}"
+    ok = "error" not in res and all(g["ok"] for g in res["groups"].values())
+    status = {
+        **res,
+        "ok": ok,
+        "started_at": started,
+        "finished_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "recorded": recorded,
+        "record_errors": rec_err,
+    }
+    PUBLISH_DIR.parent.mkdir(parents=True, exist_ok=True)
+    _write_json(STATUS, status, indent=1)
+    n = sum(len(g.get("tickers", [])) for g in res["groups"].values())
+    print(f"[daily] {'OK' if ok else '실패 있음'} · 기준일 {res.get('asof', '—')} · {n}종목 · {res.get('seconds', '—')}s · 기록 {recorded or '없음'}")
+    for gid, g in res["groups"].items():
+        if not g["ok"]:
+            print(f"  ❌ {gid}: {g['error']}")
+    if "error" in res:
+        print(f"  ❌ 수집 실패: {res['error']}")
+    return 0 if ok else 1
+
+
+def last_status() -> dict | None:
+    return json.loads(STATUS.read_text(encoding="utf-8")) if STATUS.exists() else None
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="pf.jobs.run")
     sub = ap.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("daily")
     p = sub.add_parser("publish")
     p.add_argument("--group", default="semis")
     p.add_argument("--cache", action="store_true", help="저장된 원천 데이터 재사용 (네트워크 호출 없음)")
@@ -55,6 +109,8 @@ def main(argv=None) -> int:
     s.add_argument("ticker")
     a = ap.parse_args(argv)
 
+    if a.cmd == "daily":
+        return daily()
     if a.cmd == "publish":
         t0 = time.perf_counter()
         paths = publish_group(a.group, use_cache=a.cache)

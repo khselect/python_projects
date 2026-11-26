@@ -63,6 +63,13 @@ docker compose exec market-app python -m pf.jobs.run record AVGO
 
 결과는 `market-app/data/publish/ticker/*.json`, 기록은 `market-app/data/predictions/`에 남습니다. 화면은 JSON만 읽으므로 계산 후 새로고침하면 반영됩니다.
 
+### 매일 자동 계산 (`market-jobs`)
+매일 07:15 KST에 산업 그룹 10개(50종목)를 다시 계산하고, 실적이 1~5일 남은 종목은 예측을 자동 기록합니다. 사이드바 "배치:" 줄에 마지막 실행 결과가 보입니다.
+
+```bash
+docker logs --tail 20 market_jobs
+```
+
 ## 3. 업데이트
 
 - **어디서든 push만 하면 된다.** 맥미니의 auto-deploy(launchd 5분)가 이 저장소의 upstream을 받아 `market_portfolio/`가 바뀐 경우에만 재빌드한다 (sielain.com `scripts/auto-deploy.sh`).
