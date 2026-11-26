@@ -5,6 +5,7 @@
   python -m pf.jobs.run publish [--group semis] [--cache]   그룹 실적 반응 계산·게시
   python -m pf.jobs.run record AVGO                          실적 전 예측 기록 보관
   python -m pf.jobs.run show AVGO                            게시 JSON 요약 출력 (digest)
+  python -m pf.jobs.run ai [--show semis]                    AI 해설 미리 생성만 (Ollama, 오프라인은 가짜 LLM)
 
 컨테이너: docker compose exec market-app python -m pf.jobs.run publish --group semis
 """
@@ -105,6 +106,12 @@ def daily() -> int:
             recorded.append(record_prediction(t).name)
         except Exception as e:
             rec_err[t] = f"{type(e).__name__}: {e}"
+    try:  # AI 해설 미리 생성 (F20) — 다른 결과가 모두 게시된 뒤. Ollama가 없으면 템플릿으로 채움
+        from pf.ai.pregen import pregenerate
+
+        ai = {"ok": True, **pregenerate()}
+    except Exception as e:
+        ai = {"ok": False, "error": f"{type(e).__name__}: {e}"}
     warnings = [f"{gid}/{w}" for gid, g in res.get("groups", {}).items() for w in g.get("skipped", [])]
     ok = (
         "error" not in res
@@ -116,6 +123,7 @@ def daily() -> int:
         **res,
         "macro": macro,
         "valuation": val,
+        "ai": ai,
         "warnings": warnings,
         "code_hash": code_hash(),
         "ok": ok,
@@ -144,9 +152,38 @@ def daily() -> int:
               + (f" · ⚠️ {q['stopped']}" if q.get("stopped") else ""))
     else:
         print(f"  ⚠️ 밸류에이션: {val['error']} (다른 결과에는 영향 없음)")
+    print("  " + ai_line(ai))
     if not macro["ok"]:
         print(f"  ❌ 매크로: {macro['error']}")
     return 0 if ok else 1
+
+
+def ai_line(ai: dict) -> str:
+    if not ai.get("ok"):
+        return f"⚠️ AI 해설: {ai['error']} (다른 결과에는 영향 없음)"
+    head = f"AI 해설: {ai['backend']}·{ai['model']} · {ai['n']}건 (생성 {ai['ai']}, 재사용 {ai['reused']}, 템플릿 {ai['template']}) · {ai['seconds']}s"
+    if not ai["ready"]:
+        return f"⚠️ {head} · {ai['why']}"
+    if ai["reasons"]:
+        head += " · 템플릿 사유 " + ", ".join(f"{k} {v}" for k, v in ai["reasons"].items())
+    return head
+
+
+def show_ai(key: str) -> int:
+    from pf.ai.pregen import AI_DIR
+
+    hits = sorted(AI_DIR.glob(f"*_{key}.json")) or sorted(AI_DIR.glob(f"*_{key.upper()}.json"))
+    if not hits:
+        print(f"{key}: AI 해설 없음 ({AI_DIR})")
+        return 1
+    d = json.loads(hits[0].read_text(encoding="utf-8"))
+    print(f"{d['title']} · {d['mode']} · {d.get('model') or '—'} · {d['generated_at']}")
+    print(d["text"])
+    for a in d.get("attempts", []):
+        print("  시도:", a)
+    if d.get("reason"):
+        print("  템플릿 사유:", d["reason"])
+    return 0
 
 
 def last_status() -> dict | None:
@@ -165,7 +202,17 @@ def main(argv=None) -> int:
     r.add_argument("ticker")
     s = sub.add_parser("show")
     s.add_argument("ticker")
+    ai = sub.add_parser("ai")
+    ai.add_argument("--show", help="해설 1건 출력 (macro, 그룹 id, 종목 코드)")
     a = ap.parse_args(argv)
+
+    if a.cmd == "ai":
+        if a.show:
+            return show_ai(a.show)
+        from pf.ai.pregen import pregenerate
+
+        print(ai_line({"ok": True, **pregenerate()}))
+        return 0
 
     if a.cmd == "daily":
         return daily()

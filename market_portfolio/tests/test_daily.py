@@ -35,6 +35,9 @@ def tmp_data(tmp_path, monkeypatch):
     monkeypatch.setattr(F, "DATA_DIR", tmp_path)
     monkeypatch.setattr(V, "DATA_DIR", tmp_path)
     monkeypatch.setattr(PV, "VAL_DIR", tmp_path / "publish" / "valuation")
+    import pf.ai.pregen as AP
+
+    monkeypatch.setattr(AP, "AI_DIR", tmp_path / "publish" / "ai")
     cfg = load_model()
     cfg["simulation"]["n_iter"] = 20_000  # 테스트 속도
     monkeypatch.setattr(pub, "load_model", lambda: cfg)
@@ -49,6 +52,9 @@ def test_daily_publishes_all_industry_groups(tmp_data):
     assert (tmp_data / "publish" / "macro.json").exists()
     assert st["group_pages"]["ok"]
     assert st["valuation"]["ok"] and st["valuation"]["queue"]["calls"] == 20  # 하루 예산만큼만
+    assert st["ai"]["ok"] and st["ai"]["backend"] == "fake" and st["ai"]["template"] == 0
+    assert (tmp_data / "publish" / "ai" / "macro_macro.json").exists()
+    assert (tmp_data / "publish" / "ai" / "group_semis.json").exists()
     groups = sorted(p.stem for p in (tmp_data / "publish" / "group").glob("*.json"))
     assert len(groups) == 11 and "bigtech" in groups  # 산업 10 + 테마 1
     g = json.loads((tmp_data / "publish" / "group" / "semis.json").read_text(encoding="utf-8"))

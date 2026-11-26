@@ -44,12 +44,14 @@ python -m pf.jobs.run daily                              # 매일 배치: 산업
 python -m pf.jobs.run publish --group semis [--cache]   # 그룹 실적 반응 계산 → data/publish/ticker/*.json
 python -m pf.jobs.run show AVGO                          # 게시 결과 요약 (Claude에는 이것만 보여준다)
 python -m pf.jobs.run record AVGO                        # 실적 전 예측 기록 → data/predictions/
+python -m pf.jobs.run ai [--show semis]                  # AI 해설 미리 생성만 / 1건 확인 (근거·시도·템플릿 사유)
 ```
 - 운영: `docker compose exec market-app python -m pf.jobs.run ...` (`/Users/sielain/docker`에서)
 - 매일 07:15 KST `market-jobs` 컨테이너(`pf.jobs.scheduler`)가 `daily` 실행. 결과 `data/publish/status.json`
 - 컨테이너 시작 시 오늘 배치가 없거나 `status.json`의 `code_hash`(src/pf + config 해시)가 현재와 다르면 즉시 1회 실행 → 새 기능 배포 직후에도 화면이 바로 채워짐
 - 그룹·캘린더: `pf.events.reactions.event_paths`(CAR 경로) → `pf.publish.group`(data/publish/group/*.json, calendar.json). 종목 JSON을 읽으므로 publish_all에서 종목 계산 뒤 실행
 - 밸류에이션: `pf.data.fundamentals`(Alpha Vantage 분기 재무, `ALPHAVANTAGE_API_KEY`, 하루 20회 대기열) → `pf.valuation`(TTM·분할 보정·그룹 합산·선행 P/E 누적) → `pf.publish.valuation`(data/publish/valuation/*.json). 실패해도 다른 배치 결과는 유지
+- AI 해설(F20 1단계): `pf.ai.digest`(게시 JSON → 근거 문장, 숫자는 여기서만) → `pf.ai.client`(Ollama `/api/chat`, 오프라인은 FakeLLM, `PF_AI_BACKEND=ollama|fake|off`) → `pf.ai.guard`(근거 대조·금지어·길이, 실패 시 1회 재시도) → `pf.ai.pregen`(매일 배치 끝, data/publish/ai/*.json, 실패·Ollama 없음은 템플릿). 확인: `python -m pf.jobs.run ai --show semis`. 프롬프트를 바꾸면 `PROMPT_VERSION`을 올린다
 - 매크로: `pf.data.fred`(FRED, 키 `FRED_API_KEY`) → `pf.macro.indicators`(6개 신호, 5일 확정) → `pf.macro.publish`(data/publish/macro.json). 신용(ICE) 값은 화면에 내지 않는다
 - 모델: `pf.events.reactions`(반응일·β 조정 초과수익) → `pf.sim.mixture`(3성분 t 혼합 MAP-EM, 그룹 축소) → `pf.sim.reaction_mc`(40만 회)
 

@@ -1,4 +1,4 @@
-"""종합 인사이트 — 모든 화면 오른쪽에 고정되는 패널 (F19 세 층 판정, F20 AI 해설 자리).
+"""종합 인사이트 — 모든 화면 오른쪽에 고정되는 패널 (F19 세 층 판정, F20 AI 해설).
 
 이름 (v0.17): 판정은 AI가 아닌 규칙 계산이라 "AI 어시스턴트" 대신 "종합 인사이트".
 F20 연결 뒤 AI 칸을 위로 올리거나 이름을 바꿀 수 있다.
@@ -15,6 +15,7 @@ import json
 import streamlit as st
 
 from common import coverage
+from pf.ai.pregen import load_ai
 from pf.macro.publish import MACRO_PATH
 from pf.publish.group import load_group
 from pf.publish.ticker import load_published
@@ -47,6 +48,11 @@ def _macro():
 @st.cache_data(ttl=300)
 def _group(gid: str):
     return load_group(gid)
+
+
+@st.cache_data(ttl=300)
+def _ai(kind: str, key: str):
+    return load_ai(kind, key)
 
 
 @st.cache_data(ttl=300)
@@ -86,6 +92,34 @@ def render(page_path: str) -> None:
     st.caption("상위 층(매크로 → 그룹 → 종목)을 우선하고 점수를 평균내지 않습니다. 과거 통계 기반 참고 정보입니다.")
 
     st.divider()
-    st.markdown("**AI 해설** :gray-background[준비 중]")
-    st.caption("맥미니 로컬 sLLM(Ollama)이 사이트 수치와 용어 가이드만 근거로 답할 예정입니다.")
-    st.chat_input("질문 (v1에서 사용 가능)", disabled=True, key="ai_q")
+    _ai_section(page_path, gid, t)
+
+
+def _md(s: str) -> str:
+    """마크다운 오해석 방지: '~'(취소선), '$'(수식)."""
+    return s.replace("~", "\\~").replace("$", "\\$")
+
+
+def _ai_section(page_path: str, gid: str, t: str | None) -> None:
+    """F20 1단계: 매일 배치가 미리 만든 해설을 읽기만 한다 (페이지 조회당 LLM 호출 0)."""
+    if page_path == "macro":
+        d = _ai("macro", "macro")
+    else:
+        d = (_ai("ticker", t) if t else None) or _ai("group", gid)
+    st.markdown("**AI 해설**", help="맥미니 로컬 sLLM(Ollama)이 매일 배치에서 이 사이트의 수치와 용어 가이드만 근거로 "
+                "미리 쓴 해설입니다. 답변 속 숫자·날짜는 근거와 코드로 대조하고, 맞지 않으면 버리고 근거 요약(템플릿)을 보여줍니다.")
+    if not d:
+        st.caption("오늘 해설이 아직 없습니다. 다음 배치(매일 07:15) 뒤에 표시됩니다.")
+    else:
+        if d["mode"] == "ai":
+            st.caption(f"대상: {d['title']} · {d['model']} · 기준일 {d['asof']}")
+        else:
+            st.caption(f"대상: {d['title']} · :gray-background[근거 요약] AI 해설을 쓰지 못해 근거 앞부분을 보여줍니다")
+        st.markdown(_md(d["text"]))
+        with st.expander("근거 보기"):
+            st.caption(" · ".join(d.get("sources", [])))
+            st.markdown("\n".join(f"- {_md(f)}" for f in d["facts"]))
+            if d.get("reason"):
+                st.caption(f"템플릿 사유: {d['reason']}")
+        st.caption("AI가 쓴 문장은 틀릴 수 있습니다. 숫자는 위 판정과 각 화면을 기준으로 보세요. 투자 권유가 아닙니다.")
+    st.chat_input("자유 질문 (다음 단계에서 사용 가능)", disabled=True, key="ai_q")

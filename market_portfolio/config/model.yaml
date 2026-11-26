@@ -33,3 +33,13 @@ valuation:                   # ③ 밸류에이션 (후행 P/E·P/FCF, 선행 P/
   max_age_days: 90           # 재무제표 다시 받는 주기
   report_lag_days: 45        # 분기 말 → 반영일 (미래 정보 누수 방지)
   priority: [bigtech, semis] # 먼저 채울 그룹
+
+ai:                          # F20 AI 해설 (로컬 Ollama, PLAN §8.1). 맥미니 실측 4b 35 tok/s (11-26)
+  pregen_model: gemma3:12b   # 매일 배치 미리 생성 (끝나면 메모리에서 내림)
+  chat_model: gemma3:4b      # 2단계 자유 질문 (상주)
+  pregen_timeout_s: 180      # 1건 제한
+  pregen_budget_s: 1500      # 배치 전체 제한 — 넘으면 남은 건 템플릿
+  max_tickers: 5             # 실적이 가까운 종목 해설 수
+  ticker_days: 14            # 실적까지 남은 일수
+  num_predict: 400           # 답변 최대 토큰
+  temperature: 0.2
