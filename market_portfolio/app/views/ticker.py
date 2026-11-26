@@ -34,12 +34,12 @@ cov = coverage()
 st.title("④ 종목 상세")
 st.caption("다음 실적에 어떻게 반응할까 — 과거 실적 반응으로 만든 확률 분포")
 
-# 오른쪽 열은 ⑤ 종합 패널이 차지 (v0.16) — 비교 조회는 탭으로 이동
+# 오른쪽 열은 종합 인사이트 패널이 차지 (v0.16) — 비교 조회는 탭으로 이동
 tickers = cov.tickers
 if st.session_state.get("ticker") not in tickers:
     st.session_state["ticker"] = "AVGO"
 ticker = st.selectbox("종목", tickers, key="ticker")
-st.session_state["last_ticker"] = ticker  # 위젯 키는 다른 화면으로 가면 지워지므로 ⑤ 패널용으로 따로 보관
+st.session_state["last_ticker"] = ticker  # 위젯 키는 다른 화면으로 가면 지워지므로 종합 인사이트 패널용으로 따로 보관
 d = published(ticker)
 if d is None:
     g = next(g for g in cov.industry if ticker in g.members)

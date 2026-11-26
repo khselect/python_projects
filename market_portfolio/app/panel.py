@@ -1,4 +1,7 @@
-"""⑤ 종합·질문 — 모든 화면 오른쪽에 고정되는 패널 (F19 종합 판단, F20 AI 해설 자리).
+"""종합 인사이트 — 모든 화면 오른쪽에 고정되는 패널 (F19 세 층 판정, F20 AI 해설 자리).
+
+이름 (v0.17): 판정은 AI가 아닌 규칙 계산이라 "AI 어시스턴트" 대신 "종합 인사이트".
+F20 연결 뒤 AI 칸을 위로 올리거나 이름을 바꿀 수 있다.
 
 보고 있는 화면의 맥락(그룹·종목)을 따라간다.
   ④ 종목 상세 : 선택한 종목 + 그 종목의 산업 그룹
@@ -20,7 +23,7 @@ from pf.synth.rules import synthesize
 BADGE_COLOR = {"agree_pos": "blue", "agree_neg": "red", "conflict": "orange", "partial": "gray", "neutral": "gray", "none": "gray"}
 STICKY_CSS = """
 <style>
-/* 오른쪽 ⑤ 패널: 스크롤해도 화면에 고정 (넓은 화면에서만, 좁으면 아래로 쌓임).
+/* 오른쪽 종합 인사이트 패널: 스크롤해도 화면에 고정 (넓은 화면에서만, 좁으면 아래로 쌓임).
    열을 행 높이만큼 늘이지 않도록 부모 행의 정렬을 위쪽으로 두고, 패널 열에 sticky를 준다. */
 @media (min-width: 900px) {
   div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"] .synth-anchor) {
@@ -67,12 +70,13 @@ def _context(page_path: str) -> tuple[str, str | None]:
 def render(page_path: str) -> None:
     st.html(STICKY_CSS)
     st.markdown('<div class="synth-anchor"></div>', unsafe_allow_html=True)
-    st.subheader("⑤ 종합·질문")
+    st.markdown("#### 종합 인사이트")
     gid, t = _context(page_path)
     gname = coverage().group(gid).name
     st.caption(f"보는 중: {gname}" + (f" · {t}" if t else ""))
 
     v = synthesize(_macro(), _group(gid), _ticker(t) if t else None)
+    st.markdown("**세 층 판정**", help="매크로 → 그룹 → 종목. 규칙 기반 계산(AI 미사용). 상위 층을 우선하고 점수를 평균내지 않습니다.")
     st.markdown(f"**:{BADGE_COLOR[v.code]}-background[{v.title}]**")
     st.caption(v.text)
     for layer in v.layers:
@@ -82,6 +86,6 @@ def render(page_path: str) -> None:
     st.caption("상위 층(매크로 → 그룹 → 종목)을 우선하고 점수를 평균내지 않습니다. 과거 통계 기반 참고 정보입니다.")
 
     st.divider()
-    st.markdown("**AI 해설**")
-    st.caption("v1 예정 — 맥미니 로컬 sLLM(Ollama)이 사이트 수치와 용어 가이드만 근거로 답합니다.")
+    st.markdown("**AI 해설** :gray-background[준비 중]")
+    st.caption("맥미니 로컬 sLLM(Ollama)이 사이트 수치와 용어 가이드만 근거로 답할 예정입니다.")
     st.chat_input("질문 (v1에서 사용 가능)", disabled=True, key="ai_q")
