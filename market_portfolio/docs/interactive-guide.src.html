@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>market.sielain.com 인터랙티브 가이드</title>
+<meta name="description" content="실적 반응·매크로 국면 대시보드를 처음 쓰는 사람을 위한 화면 안내와 직접 만져 보는 연습 도구">
+<style>
+:root {
+  --bg: #ffffff; --surface: #f6f7f9; --card: #ffffff; --line: #e3e5e8;
+  --ink: #191919; --ink-2: #5f6368; --ink-3: #8a8f96;
+  --up: #257de0; --up-soft: #e6f0fc; --down: #ec4647; --down-soft: #fde8e8;
+  --warn: #c76a00; --warn-soft: #fff1df; --neutral: #9aa0a6; --neutral-soft: #eef0f2;
+  --accent: #1757ac; --radius: 10px;
+  --font: "Pretendard", "Noto Sans KR", "Apple SD Gothic Neo", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141517; --surface: #1c1e21; --card: #202326; --line: #33373c;
+    --ink: #eceef0; --ink-2: #b3b8be; --ink-3: #868c93;
+    --up: #4a9bf0; --up-soft: #1b2c42; --down: #f06a6b; --down-soft: #3a2224;
+    --warn: #f0a040; --warn-soft: #3a2c17; --neutral: #8a9096; --neutral-soft: #2a2d31; --accent: #7fb3f5;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141517; --surface: #1c1e21; --card: #202326; --line: #33373c;
+  --ink: #eceef0; --ink-2: #b3b8be; --ink-3: #868c93;
+  --up: #4a9bf0; --up-soft: #1b2c42; --down: #f06a6b; --down-soft: #3a2224;
+  --warn: #f0a040; --warn-soft: #3a2c17; --neutral: #8a9096; --neutral-soft: #2a2d31; --accent: #7fb3f5;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font); line-height: 1.6; }
+.wrap { max-width: 1080px; margin: 0 auto; padding: 0 16px 64px; }
+header { padding: 40px 0 16px; }
+h1 { font-size: 28px; margin: 0 0 8px; letter-spacing: -0.02em; }
+h2 { font-size: 21px; margin: 48px 0 6px; letter-spacing: -0.01em; }
+h3 { font-size: 16px; margin: 0 0 8px; }
+p.lead { color: var(--ink-2); margin: 0; max-width: 760px; }
+.note { font-size: 13px; color: var(--ink-3); }
+.notice { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; font-size: 14px; color: var(--ink-2); margin: 16px 0 0; }
+nav.toc { position: sticky; top: 0; z-index: 5; background: var(--bg); border-bottom: 1px solid var(--line); margin: 16px 0 0; }
+nav.toc ul { list-style: none; display: flex; gap: 4px; margin: 0; padding: 8px 0; overflow-x: auto; }
+nav.toc a { display: block; padding: 6px 12px; border-radius: 999px; color: var(--ink-2); text-decoration: none; font-size: 14px; white-space: nowrap; }
+nav.toc a:hover, nav.toc a:focus-visible { background: var(--surface); color: var(--ink); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+.grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 760px) { .grid2, .grid3 { grid-template-columns: minmax(0, 1fr); } }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 10px; }
+.tabs button, .seg button, .btn {
+  font: inherit; font-size: 14px; border: 1px solid var(--line); background: var(--card); color: var(--ink);
+  border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+.tabs button[aria-selected="true"], .seg button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: var(--up-soft); }
+.btn:hover, .tabs button:hover, .seg button:hover { border-color: var(--ink-3); }
+.shot figure { margin: 0; }
+.shot img { width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; display: block; background: #fff; }
+.shot figcaption { margin-top: 10px; }
+.shot ul { margin: 6px 0 0; padding-left: 20px; color: var(--ink-2); font-size: 14px; }
+.kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.kpi { background: var(--surface); border-radius: 8px; padding: 10px; }
+.kpi .k { font-size: 12px; color: var(--ink-2); }
+.kpi .v { font-size: 22px; font-variant-numeric: tabular-nums; font-weight: 600; }
+.ind { display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.ind:last-child { border-bottom: 0; }
+.ind .desc { font-size: 13px; color: var(--ink-2); }
+.seg { display: inline-flex; gap: 4px; }
+.seg button { padding: 4px 8px; font-size: 13px; min-width: 44px; }
+.seg button[data-v="1"][aria-pressed="true"] { color: var(--up); border-color: var(--up); background: var(--up-soft); }
+.seg button[data-v="-1"][aria-pressed="true"] { color: var(--down); border-color: var(--down); background: var(--down-soft); }
+.seg button[data-v="0"][aria-pressed="true"] { color: var(--ink-2); border-color: var(--neutral); background: var(--neutral-soft); }
+.score { font-size: 44px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
+.badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 14px; font-weight: 600; }
+.b-up { color: var(--up); background: var(--up-soft); }
+.b-down { color: var(--down); background: var(--down-soft); }
+.b-warn { color: var(--warn); background: var(--warn-soft); }
+.b-neutral { color: var(--ink-2); background: var(--neutral-soft); }
+.meter { position: relative; height: 10px; border-radius: 999px; margin: 14px 0 4px;
+  background: linear-gradient(90deg, var(--down-soft) 0 25%, var(--neutral-soft) 25% 75%, var(--up-soft) 75% 100%); }
+.meter i { position: absolute; top: -4px; width: 4px; height: 18px; border-radius: 2px; background: var(--ink); transform: translateX(-2px); transition: left .2s; }
+.meter-l { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink-3); }
+.days { display: grid; grid-template-columns: 64px repeat(12, minmax(0, 1fr)); gap: 3px; align-items: center; font-size: 12px; }
+.days .lab { color: var(--ink-2); }
+.days button { font: inherit; height: 30px; border-radius: 6px; border: 1px solid var(--line); cursor: pointer; font-size: 12px; padding: 0; }
+.days span { height: 30px; border-radius: 6px; display: grid; place-items: center; font-size: 12px; }
+.c-up { background: var(--up-soft); color: var(--up); }
+.c-down { background: var(--down-soft); color: var(--down); }
+.c-flip { outline: 2px solid var(--warn); outline-offset: -2px; }
+label.sl { display: grid; grid-template-columns: 82px minmax(0, 1fr) 58px; gap: 8px; align-items: center; font-size: 13px; color: var(--ink-2); margin: 6px 0; }
+label.sl output { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink); }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+.scen h3 { font-size: 14px; }
+.chart { width: 100%; height: auto; display: block; }
+.legend { display: flex; gap: 14px; font-size: 12px; color: var(--ink-2); margin-top: 6px; flex-wrap: wrap; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.layer { display: grid; grid-template-columns: 56px 92px minmax(0, 1fr); gap: 8px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.layer:last-child { border-bottom: 0; }
+.layer .basis { color: var(--ink-2); font-size: 13px; }
+.s-up { color: var(--up); font-weight: 600; } .s-down { color: var(--down); font-weight: 600; } .s-0 { color: var(--ink-2); font-weight: 600; }
+.presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+dl.terms { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 12px 0 0; }
+@media (max-width: 760px) { dl.terms { grid-template-columns: minmax(0, 1fr); } }
+dl.terms div { background: var(--surface); border-radius: 8px; padding: 10px 12px; }
+dl.terms dt { font-weight: 600; } dl.terms dd { margin: 2px 0 0; color: var(--ink-2); font-size: 14px; }
+footer { margin-top: 56px; font-size: 13px; color: var(--ink-3); border-top: 1px solid var(--line); padding-top: 16px; }
+.theme { float: right; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <button class="btn theme" id="themeBtn" aria-label="밝게/어둡게 전환">◐ 테마</button>
+  <h1>market.sielain.com 인터랙티브 가이드</h1>
+  <p class="lead">실적 반응 시뮬레이터 · 매크로 국면 대시보드를 처음 쓰는 분을 위한 안내입니다. 화면을 둘러보고, 사이트가 쓰는 계산 규칙을 직접 만져 보며 익힐 수 있습니다.</p>
+  <div class="notice">정보 제공 목적이며 투자 자문이 아닙니다 · 과거 통계는 미래 수익을 보장하지 않습니다. 이 페이지의 화면 캡처와 숫자는 <b>합성 데이터</b>로 만든 예시입니다.</div>
+</header>
+
+<nav class="toc" aria-label="목차">
+  <ul>
+    <li><a href="#tour">① 화면 둘러보기</a></li>
+    <li><a href="#macro">② 국면 점수 계산기</a></li>
+    <li><a href="#sim">③ 반응 분포 시뮬레이터</a></li>
+    <li><a href="#synth">④ 종합 판단 연습</a></li>
+    <li><a href="#terms">⑤ 용어</a></li>
+  </ul>
+</nav>
+
+<!-- ───────── 화면 둘러보기 ───────── -->
+<section id="tour">
+  <h2>① 화면 둘러보기</h2>
+  <p class="note">화면은 세로 3분할입니다 — 왼쪽 메뉴 | 가운데 화면 ①~④ | 오른쪽 ⑤ 종합 패널(항상 보임). 탭을 눌러 화면별 설명을 보세요.</p>
+  <div class="tabs" role="tablist" id="tourTabs"></div>
+  <div class="shot card" id="tourPanel" role="tabpanel"></div>
+</section>
+
+<!-- ───────── 국면 점수 계산기 ───────── -->
+<section id="macro">
+  <h2>② 국면 점수 계산기</h2>
+  <p class="note">① 매크로 국면 화면이 하는 계산입니다. 6개 지표를 우호(+1)·중립(0)·비우호(−1)로 바꿔 보며 점수와 국면이 어떻게 바뀌는지 확인하세요.</p>
+  <div class="grid2">
+    <div class="card" id="indCard"></div>
+    <div class="card">
+      <div class="note">국면 점수 (−6 ~ +6)</div>
+      <div style="display:flex;align-items:baseline;gap:14px;margin-top:4px">
+        <div class="score" id="score">0</div><span class="badge b-neutral" id="regime">중립·전환</span>
+      </div>
+      <div class="meter" aria-hidden="true"><i id="meterPin" style="left:50%"></i></div>
+      <div class="meter-l"><span>−6 위험회피 (≤ −3)</span><span>중립·전환</span><span>확장 (≥ +3) +6</span></div>
+      <p class="note" id="regimeText" style="margin-top:12px"></p>
+      <div class="presets">
+        <button class="btn" data-preset="1,1,1,1,1,0">강한 확장 예시</button>
+        <button class="btn" data-preset="1,-1,-1,-1,1,-1">예시 화면과 같게</button>
+        <button class="btn" data-preset="-1,-1,-1,-1,-1,-1">전면 위험회피</button>
+      </div>
+    </div>
+  </div>
+
+  <h3 style="margin-top:24px">5거래일 확정 규칙</h3>
+  <p class="note">지표의 그날 판정(원 신호)이 <b>5거래일 연속</b> 같아야 화면의 신호가 바뀝니다. 위 줄의 칸을 눌러 원 신호를 뒤집어 보세요 — 하루 이틀의 흔들림은 무시되고, 주황 테두리가 실제 전환일입니다.</p>
+  <div class="card"><div class="days" id="days"></div></div>
+</section>
+
+<!-- ───────── 반응 분포 시뮬레이터 ───────── -->
+<section id="sim">
+  <h2>③ 반응 분포 시뮬레이터</h2>
+  <p class="note">④ 종목 상세의 <b>시나리오 편집</b>과 같은 계산입니다. 실적 다음 날 초과수익을 약세·중립·강세 세 시나리오(스튜던트 t 분포, 자유도 4)의 혼합으로 보고 20,000번 뽑습니다.</p>
+  <div class="presets">
+    <button class="btn" data-sim="avgo">예시 종목 (화면 캡처와 같은 값)</button>
+    <button class="btn" data-sim="wild">변동성 큰 종목</button>
+    <button class="btn" data-sim="calm">반응이 작은 종목</button>
+  </div>
+  <div class="grid3" id="scen"></div>
+  <div class="grid2" style="margin-top:16px">
+    <div class="card">
+      <svg class="chart" id="hist" viewBox="0 0 520 240" role="img" aria-label="다음 날 초과수익 분포"></svg>
+      <div class="legend"><span><i style="background:var(--down)"></i>하락 구간</span><span><i style="background:var(--up)"></i>상승 구간</span><span>점선 = 5% · 95% 위치</span></div>
+    </div>
+    <div class="card">
+      <div class="kpis" id="kpis"></div>
+      <p class="note" id="simText" style="margin-top:12px"></p>
+    </div>
+  </div>
+</section>
+
+<!-- ───────── 종합 판단 연습 ───────── -->
+<section id="synth">
+  <h2>④ 종합 판단 연습</h2>
+  <p class="note">오른쪽 ⑤ 패널의 규칙입니다. 매크로 → 그룹 → 종목 순으로 위 층을 우선하고, 점수를 평균내지 않습니다(평균은 충돌을 숨기기 때문).</p>
+  <div class="presets">
+    <button class="btn" data-syn="3,0.01,0.35,-0.07">예시 1 · 모두 우호</button>
+    <button class="btn" data-syn="-4,0.02,0.40,-0.08">예시 2 · 매크로와 그룹 충돌</button>
+    <button class="btn" data-syn="-2,0.0,0.42,-0.107">예시 3 · 화면 캡처와 같게</button>
+    <button class="btn" data-syn="1,0.0,0.45,-0.18">예시 4 · 꼬리 위험만 큼</button>
+  </div>
+  <div class="grid2">
+    <div class="card">
+      <label class="sl">국면 점수<input type="range" id="sMacro" min="-6" max="6" step="1" value="-2"><output id="oMacro"></output></label>
+      <label class="sl">그룹 21일 CAR<input type="range" id="sGroup" min="-3" max="3" step="0.1" value="0"><output id="oGroup"></output></label>
+      <label class="sl">P(하락)<input type="range" id="sPdown" min="20" max="80" step="1" value="42"><output id="oPdown"></output></label>
+      <label class="sl">90% 하단<input type="range" id="sTail" min="-30" max="-2" step="0.5" value="-10.5"><output id="oTail"></output></label>
+      <p class="note">그룹 = 과거 실적 후 21일 초과수익 중앙값(±0.5% 밖이면 방향). 종목 = P(하락) ≥ 60% 또는 90% 하단 ≤ −15%면 비우호, P(상승) ≥ 60% 이고 하단 > −15%면 우호.</p>
+    </div>
+    <div class="card" aria-live="polite">
+      <div id="synBadge"></div>
+      <p id="synText" style="margin:8px 0 12px;color:var(--ink-2);font-size:14px"></p>
+      <div id="synLayers"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ───────── 용어 ───────── -->
+<section id="terms">
+  <h2>⑤ 용어</h2>
+  <dl class="terms">
+    <div><dt>초과수익률</dt><dd>종목 수익률 − β × 벤치마크(그룹 ETF) 수익률. 시장 전체 움직임을 뺀 종목 고유의 반응.</dd></div>
+    <div><dt>반응일</dt><dd>실적이 주가에 처음 반영되는 날. 장 마감 후 발표면 다음 거래일, 개장 전 발표면 당일.</dd></div>
+    <div><dt>90% 구간</dt><dd>결과의 가운데 90%가 들어가는 범위(5% ~ 95% 위치). 아래쪽 끝이 "나쁠 때의 크기".</dd></div>
+    <div><dt>CVaR 5%</dt><dd>가장 나쁜 5% 경우들의 평균. 90% 하단보다 더 나쁜 쪽을 요약한 숫자.</dd></div>
+    <div><dt>CAR</dt><dd>누적 초과수익률. 실적일 전후 여러 날의 초과수익을 더한 값. ③ 그룹 상세의 곡선.</dd></div>
+    <div><dt>국면 점수</dt><dd>6개 매크로 지표의 우호(+1)·중립(0)·비우호(−1) 합. +3 이상 확장, −3 이하 위험회피.</dd></div>
+    <div><dt>참고용</dt><dd>예측이 실제로 얼마나 맞았는지 검증(보정)하기 전이라는 표시. 모든 확률에 붙습니다.</dd></div>
+    <div><dt>동일가중</dt><dd>그룹의 모든 종목에 같은 비중. 그룹 월수익률 = 구성 종목 월수익률의 평균.</dd></div>
+  </dl>
+</section>
+
+<footer>
+  market.sielain.com 인터랙티브 가이드 · 계산 규칙은 사이트 코드(<code>pf.macro.indicators</code>, <code>pf.sim</code>, <code>pf.synth.rules</code>)와 같습니다 · 2026-11-26
+</footer>
+</div>
+
+<script>
+/* ── 테마 전환 ── */
+(function () {
+  const btn = document.getElementById('themeBtn');
+  let saved = null;
+  try { saved = localStorage.getItem('mg-theme'); } catch (e) {}
+  if (saved) document.documentElement.dataset.theme = saved;
+  btn.addEventListener('click', () => {
+    const cur = document.documentElement.dataset.theme ||
+      (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    const next = cur === 'dark' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem('mg-theme', next); } catch (e) {}
+    drawHist();
+  });
+})();
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const pct = (x, d = 1) => { const v = +(x * 100).toFixed(d); return (v === 0 ? '0.' + '0'.repeat(d) : (v > 0 ? '+' : '') + v.toFixed(d)) + '%'; };
+
+/* ── ① 화면 둘러보기 ── */
+const SHOTS = [
+  { tab: '① 매크로 국면', img: '{{IMG_01-macro}}', q: '큰 자금은 어디로 움직이나',
+    pts: ['맨 위: 국면 점수와 국면, 이 국면이 시작된 날', '비교 기준(3·6·12개월 전)을 바꾸면 "변화" 열이 바뀜 — 수준보다 방향 전환을 보는 화면', '근거 열: 판정에 쓴 실제 수치. 신용은 라이선스상 방향만'] },
+  { tab: '① 2년 추이', img: '{{IMG_01-macro-trend}}', q: '국면이 언제 바뀌었나',
+    pts: ['주간 국면 점수. 파란 띠 = 확장 구간, 빨간 띠 = 위험회피 구간', '띠 경계를 자주 넘나들면 전환기일 가능성'] },
+  { tab: '② 실적 캘린더', img: '{{IMG_02-calendar}}', q: '이번 달 누가 발표하나',
+    pts: ['기간 2·4·12주, 가장 먼저 발표하는 그룹이 위', '카드 숫자 = 그 그룹의 과거 실적 후 21일 초과수익 통계(예측 아님)', '종목 칩을 누르면 ④ 종목 상세로'] },
+  { tab: '③ 그룹 상세', img: '{{IMG_03-group}}', q: '이 업종은 실적 때 어떻게 움직였나',
+    pts: ['가로축 0 = 실적 반응일. 진한 선 = 평균, 옅은 띠 = 가운데 50%', '다가오는 발표 표에서 종목별 P(하락)·90% 구간'] },
+  { tab: '③ 히트맵', img: '{{IMG_03-group-heatmap}}', q: '해마다·달마다 성과는',
+    pts: ['칸의 숫자 = 그 달 그룹 수익률(동일가중)', '아래 표: 연도별 그룹·벤치마크·차이. 현재 구성 종목 기준'] },
+  { tab: '④ 종목 상세', img: '{{IMG_04-ticker}}', q: '다음 실적에 어떻게 반응할까',
+    pts: ['다음 실적일·장전/장후·D-day, 표본 수와 "참고용"', '확률 카드 6개 — 손실 쪽 숫자(90% 하단·CVaR)도 같은 크기로', '분포 그림: 빨강 하락, 파랑 상승, 점선 5%·95%'] },
+  { tab: '④ 누적', img: '{{IMG_04-ticker-cumulative}}', q: '시간이 지나면',
+    pts: ['실적 후 63거래일까지 누적 초과수익 범위(팬 차트)', '기간이 길수록 범위가 넓어지는 모양'] },
+  { tab: '④ 시나리오', img: '{{IMG_04-ticker-scenario}}', q: '가정을 바꿔 보면',
+    pts: ['약세·중립·강세 확률·평균·표준편차 슬라이더', '5만 회 다시 계산해 원래 값과의 차이(%p) 표시 — 아래 ③ 시뮬레이터와 같은 계산'] },
+  { tab: '④ 과거 반응', img: '{{IMG_04-ticker-history}}', q: '실제로는 어땠나',
+    pts: ['최근 24건: 다음 날 수익률·초과수익·5·21일 누적·EPS 서프라이즈', '분포의 범위와 실제 결과를 대조해 보기'] },
+  { tab: '④ 비교', img: '{{IMG_04-ticker-compare}}', q: '다른 종목과 비교하면',
+    pts: ['두 종목의 핵심 수치를 한 표로'] },
+];
+(function () {
+  const tabs = document.getElementById('tourTabs'), panel = document.getElementById('tourPanel');
+  const show = (i) => {
+    [...tabs.children].forEach((b, j) => b.setAttribute('aria-selected', String(i === j)));
+    const s = SHOTS[i];
+    panel.innerHTML = `<figure><img src="${s.img}" alt="${s.tab} 화면" loading="lazy"><figcaption><h3>${s.tab} — ${s.q}</h3><ul>${s.pts.map(p => `<li>${p}</li>`).join('')}</ul></figcaption></figure>`;
+  };
+  SHOTS.forEach((s, i) => { const b = document.createElement('button'); b.setAttribute('role', 'tab'); b.textContent = s.tab; b.onclick = () => show(i); tabs.appendChild(b); });
+  show(0);
+})();
+
+/* ── ② 국면 점수 계산기 ── */
+const INDS = [
+  ['유동성', 'GDP 전년비 − 기준금리 ≥ 0.5%p이고 금리 동결·인하면 우호'],
+  ['원자재', 'DBC가 200일 평균보다 1% 넘게 위면 우호'],
+  ['시장 폭', 'RSP/SPY가 200일 평균보다 1% 넘게 위면 우호 (소수 대형주만 오르면 비우호)'],
+  ['신용', '하이일드 스프레드 3개월 0.1%p 넘게 축소면 우호'],
+  ['금리곡선', '역전 해소 6개월 뒤 10Y−2Y ≥ 0.25%p면 우호'],
+  ['달러', '달러지수가 200일 평균보다 1% 넘게 아래면 우호'],
+];
+const sig = INDS.map(() => 0);
+(function () {
+  const card = document.getElementById('indCard');
+  INDS.forEach(([name, desc], i) => {
+    const row = document.createElement('div'); row.className = 'ind';
+    row.innerHTML = `<b>${name}</b><span class="desc">${desc}</span><span class="seg" role="group" aria-label="${name} 판정">
+      <button data-v="-1">▼</button><button data-v="0">●</button><button data-v="1">▲</button></span>`;
+    row.querySelectorAll('button').forEach(b => b.onclick = () => { sig[i] = +b.dataset.v; renderMacro(); });
+    card.appendChild(row);
+  });
+  document.querySelectorAll('[data-preset]').forEach(b => b.onclick = () => { b.dataset.preset.split(',').forEach((v, i) => sig[i] = +v); renderMacro(); });
+})();
+function regimeOf(s) { return s >= 3 ? ['확장', 'b-up'] : s <= -3 ? ['위험회피', 'b-down'] : ['중립·전환', 'b-neutral']; }
+function renderMacro() {
+  document.querySelectorAll('#indCard .ind').forEach((row, i) =>
+    row.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.v === sig[i]))));
+  const s = sig.reduce((a, b) => a + b, 0), [r, cls] = regimeOf(s);
+  document.getElementById('score').textContent = (s > 0 ? '+' : '') + s;
+  const rg = document.getElementById('regime'); rg.textContent = r; rg.className = 'badge ' + cls;
+  document.getElementById('meterPin').style.left = ((s + 6) / 12 * 100) + '%';
+  const up = sig.filter(v => v === 1).length, dn = sig.filter(v => v === -1).length;
+  document.getElementById('regimeText').textContent =
+    `우호 ${up}개 · 중립 ${6 - up - dn}개 · 비우호 ${dn}개. ` +
+    (r === '확장' ? '위험자산에 우호적인 지표가 우세합니다.' : r === '위험회피' ? '비우호 지표가 우세합니다.' : '한쪽으로 기울지 않은 상태입니다. 최근 전환이 많으면 국면이 바뀌는 중일 수 있습니다.');
+}
+renderMacro();
+
+/* 5거래일 확정 데모 */
+const raw = [1, 1, 1, 1, 1, -1, -1, 1, -1, -1, -1, -1];
+function confirm(arr, n = 5) {
+  const out = []; let cur = null, cand = null, run = 0;
+  for (const v of arr) {
+    if (cur === null || v !== cur) { if (v === cand) run++; else { cand = v; run = 1; } if (run >= n) { cur = v; cand = null; run = 0; } }
+    else { cand = null; run = 0; }
+    out.push(cur);
+  }
+  return out;
+}
+function renderDays() {
+  const el = document.getElementById('days'), c = confirm(raw);
+  let h = '<span class="lab">원 신호</span>' + raw.map((v, i) => `<button class="${v > 0 ? 'c-up' : 'c-down'}" data-i="${i}" aria-label="${i + 1}일 원 신호 ${v > 0 ? '우호' : '비우호'}, 눌러서 뒤집기">${v > 0 ? '▲' : '▼'}</button>`).join('');
+  h += '<span class="lab">화면 신호</span>' + c.map((v, i) => {
+    const flip = i > 0 && c[i - 1] !== null && v !== c[i - 1];
+    return `<span class="${v === null ? '' : v > 0 ? 'c-up' : 'c-down'}${flip ? ' c-flip' : ''}">${v === null ? '·' : v > 0 ? '▲' : '▼'}</span>`;
+  }).join('');
+  h += '<span class="lab"></span>' + raw.map((_, i) => `<span style="color:var(--ink-3)">${i + 1}일</span>`).join('');
+  el.innerHTML = h;
+  el.querySelectorAll('button').forEach(b => b.onclick = () => { raw[+b.dataset.i] *= -1; renderDays(); });
+}
+renderDays();
+
+/* ── ③ 반응 분포 시뮬레이터 ── */
+const PRESETS = {
+  avgo: [[23, -8.0, 3.1], [61, 1.3, 2.6], [16, 6.8, 1.5]],
+  wild: [[30, -14, 6], [40, 0.5, 4], [30, 12, 6]],
+  calm: [[20, -3, 1.5], [65, 0.2, 1.0], [15, 3, 1.5]],
+};
+const SC = [['C 약세', 'down'], ['B 중립', 'neutral'], ['A 강세', 'up']];
+let scen = PRESETS.avgo.map(r => r.slice()), draws = [];
+(function () {
+  const box = document.getElementById('scen');
+  SC.forEach(([name], i) => {
+    const c = document.createElement('div'); c.className = 'card scen';
+    c.innerHTML = `<h3>${name}</h3>
+      <label class="sl">확률(%)<input type="range" min="0" max="100" step="1" data-k="0"><output></output></label>
+      <label class="sl">평균(%)<input type="range" min="-30" max="30" step="0.5" data-k="1"><output></output></label>
+      <label class="sl">표준편차(%)<input type="range" min="0.5" max="15" step="0.5" data-k="2"><output></output></label>`;
+    c.querySelectorAll('input').forEach(inp => inp.oninput = () => { scen[i][+inp.dataset.k] = +inp.value; simulate(); });
+    box.appendChild(c);
+  });
+  document.querySelectorAll('[data-sim]').forEach(b => b.onclick = () => { scen = PRESETS[b.dataset.sim].map(r => r.slice()); simulate(); });
+})();
+function rng(seed) { let s = seed >>> 0; return () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+function simulate() {
+  document.querySelectorAll('#scen .card').forEach((c, i) => c.querySelectorAll('input').forEach(inp => {
+    inp.value = scen[i][+inp.dataset.k]; inp.nextElementSibling.textContent = scen[i][+inp.dataset.k];
+  }));
+  const tot = scen.reduce((a, r) => a + r[0], 0) || 1, w = scen.map(r => r[0] / tot);
+  const R = rng(20261126), N = 20000, nu = 4, out = new Float64Array(N);
+  const norm = () => { let u = 0; while (!u) u = R(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * R()); };
+  for (let n = 0; n < N; n++) {
+    const u = R(); const k = u < w[0] ? 0 : u < w[0] + w[1] ? 1 : 2;
+    let chi = 0; for (let j = 0; j < nu; j++) { const z = norm(); chi += z * z; }
+    out[n] = (scen[k][1] + scen[k][2] * norm() / Math.sqrt(chi / nu)) / 100;
+  }
+  draws = Array.from(out).sort((a, b) => a - b);
+  const q = p => draws[Math.min(N - 1, Math.floor(p * N))];
+  const pUp = draws.filter(x => x > 0).length / N, mean = draws.reduce((a, b) => a + b, 0) / N;
+  const p5 = q(0.05), p95 = q(0.95), tail = draws.slice(0, Math.floor(0.05 * N)), cvar = tail.reduce((a, b) => a + b, 0) / tail.length;
+  const K = [['P(상승)', (pUp * 100).toFixed(0) + '%', 'up'], ['P(하락)', ((1 - pUp) * 100).toFixed(0) + '%', 'down'], ['기대값', pct(mean), ''],
+             ['90% 하단', pct(p5), 'down'], ['90% 상단', pct(p95), 'up'], ['CVaR 5%', pct(cvar), 'down']];
+  document.getElementById('kpis').innerHTML = K.map(([k, v]) => `<div class="kpi"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+  document.getElementById('simText').textContent =
+    `확률 합계 ${tot}% → 100%로 맞춰 계산. 기대값 ${pct(mean)}이어도 나쁜 5% 경우 평균은 ${pct(cvar)}입니다 — 사이트가 손실 쪽 숫자를 기대값과 같은 크기로 보여주는 이유.`;
+  drawHist(p5, p95);
+}
+function drawHist(p5, p95) {
+  if (!draws.length) return;
+  const svg = document.getElementById('hist'), W = 520, H = 240, L = 36, B = 28, T = 10;
+  const lo = draws[Math.floor(draws.length * 0.005)], hi = draws[Math.floor(draws.length * 0.995)], bins = 48;
+  const cnt = new Array(bins).fill(0);
+  for (const x of draws) { if (x < lo || x > hi) continue; cnt[Math.min(bins - 1, Math.floor((x - lo) / (hi - lo) * bins))]++; }
+  const mx = Math.max(...cnt), bw = (W - L - 6) / bins, X = v => L + (v - lo) / (hi - lo) * (W - L - 6);
+  p5 = p5 ?? draws[Math.floor(draws.length * 0.05)]; p95 = p95 ?? draws[Math.floor(draws.length * 0.95)];
+  let s = '';
+  cnt.forEach((c, i) => {
+    const x0 = lo + (hi - lo) * i / bins, h = (H - B - T) * c / mx;
+    s += `<rect x="${(L + i * bw + 1).toFixed(1)}" y="${(H - B - h).toFixed(1)}" width="${(bw - 2).toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="${x0 + (hi - lo) / bins / 2 < 0 ? css('--down') : css('--up')}"><title>${pct(x0)} ~ ${pct(x0 + (hi - lo) / bins)}: ${(c / draws.length * 100).toFixed(1)}%</title></rect>`;
+  });
+  const ink2 = css('--ink-2'), line = css('--line');
+  s += `<line x1="${L}" x2="${W - 6}" y1="${H - B}" y2="${H - B}" stroke="${line}"/>`;
+  if (lo < 0 && hi > 0) s += `<line x1="${X(0)}" x2="${X(0)}" y1="${T}" y2="${H - B}" stroke="${css('--ink')}" stroke-width="1"/>`;
+  [[p5, '5%'], [p95, '95%']].forEach(([v, lab]) => {
+    s += `<line x1="${X(v)}" x2="${X(v)}" y1="${T}" y2="${H - B}" stroke="${ink2}" stroke-dasharray="3 3"/>`;
+    s += `<text x="${X(v) + (lab === '5%' ? -4 : 4)}" y="${T + 10}" font-size="11" fill="${ink2}" text-anchor="${lab === '5%' ? 'end' : 'start'}">${lab} ${pct(v)}</text>`;
+  });
+  for (let k = 0; k <= 4; k++) { const v = lo + (hi - lo) * k / 4, anc = k === 0 ? 'start' : k === 4 ? 'end' : 'middle'; s += `<text x="${X(v)}" y="${H - 8}" font-size="11" fill="${ink2}" text-anchor="${anc}">${pct(v, 0)}</text>`; }
+  s += `<text x="${L - 6}" y="${T + 8}" font-size="11" fill="${ink2}" text-anchor="end">비중</text>`;
+  svg.innerHTML = s;
+}
+simulate();
+
+/* ── ④ 종합 판단 연습 (pf.synth.rules와 같은 규칙) ── */
+const SL = { 1: ['▲ 우호', 's-up'], 0: ['● 중립', 's-0'], '-1': ['▼ 비우호', 's-down'] };
+function synth(score, g, pDown, tail) {
+  const m = score >= 3 ? 1 : score <= -3 ? -1 : 0;
+  const gv = g >= 0.005 ? 1 : g <= -0.005 ? -1 : 0;
+  const tv = (pDown >= 0.6 || tail <= -0.15) ? -1 : ((1 - pDown) >= 0.6 && tail > -0.15) ? 1 : 0;
+  const layers = [['매크로', m, `국면 점수 ${score > 0 ? '+' : ''}${score}`], ['그룹', gv, `과거 21일 초과수익 중앙값 ${pct(g)} (참고용)`], ['종목', tv, `다음 날 P(하락) ${(pDown * 100).toFixed(0)}% · 90% 하단 ${pct(tail)}`]];
+  const nz = layers.filter(l => l[1] !== 0);
+  for (let i = 0; i < nz.length; i++) for (let j = i + 1; j < nz.length; j++) if (nz[i][1] !== nz[j][1])
+    return { cls: 'b-warn', title: `충돌 — ${nz[i][0]} 우선`, text: `${nz[i][0]} 층은 ${nz[i][1] > 0 ? '우호' : '비우호'}, ${nz[j][0]} 층은 반대 방향입니다. 종합 규칙상 상위 층(${nz[i][0]})을 우선해 읽습니다.`, layers };
+  if (nz.length === 3) return nz[0][1] > 0
+    ? { cls: 'b-up', title: '일치 — 위험자산 우호', text: '세 층이 모두 우호 쪽입니다.', layers }
+    : { cls: 'b-down', title: '일치 — 위험자산 비우호', text: '세 층이 모두 비우호 쪽입니다. 손실 쪽 숫자(90% 하단)를 함께 확인하세요.', layers };
+  if (nz.length) { const side = nz[0][1] > 0 ? '우호' : '비우호';
+    return { cls: 'b-neutral', title: `부분 일치 — ${side} 쪽`, text: `${nz.map(l => l[0]).join(', ')} 층은 ${side}, ${layers.filter(l => l[1] === 0).map(l => l[0]).join(', ')} 층은 중립입니다.`, layers }; }
+  return { cls: 'b-neutral', title: '중립', text: '세 층 모두 뚜렷한 방향이 없습니다.', layers };
+}
+function renderSynth() {
+  const sc = +sMacro.value, g = +sGroup.value / 100, pd = +sPdown.value / 100, tl = +sTail.value / 100;
+  oMacro.textContent = (sc > 0 ? '+' : '') + sc; oGroup.textContent = pct(g); oPdown.textContent = (pd * 100).toFixed(0) + '%'; oTail.textContent = pct(tl);
+  const v = synth(sc, g, pd, tl);
+  synBadge.innerHTML = `<span class="badge ${v.cls}">${v.title}</span>`;
+  synText.textContent = v.text;
+  synLayers.innerHTML = v.layers.map(([n, val, b]) => `<div class="layer"><b>${n}</b><span class="${SL[val][1]}">${SL[val][0]}</span><span class="basis">${b}</span></div>`).join('');
+}
+const [sMacro, sGroup, sPdown, sTail, oMacro, oGroup, oPdown, oTail, synBadge, synText, synLayers] =
+  ['sMacro', 'sGroup', 'sPdown', 'sTail', 'oMacro', 'oGroup', 'oPdown', 'oTail', 'synBadge', 'synText', 'synLayers'].map(id => document.getElementById(id));
+[sMacro, sGroup, sPdown, sTail].forEach(e => e.oninput = renderSynth);
+document.querySelectorAll('[data-syn]').forEach(b => b.onclick = () => {
+  const [a, g, p, t] = b.dataset.syn.split(',').map(Number);
+  sMacro.value = a; sGroup.value = g * 100; sPdown.value = p * 100; sTail.value = t * 100; renderSynth();
+});
+renderSynth();
+</script>
+</body>
+</html>

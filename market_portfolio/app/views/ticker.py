@@ -39,6 +39,7 @@ tickers = cov.tickers
 if st.session_state.get("ticker") not in tickers:
     st.session_state["ticker"] = "AVGO"
 ticker = st.selectbox("종목", tickers, key="ticker")
+st.session_state["last_ticker"] = ticker  # 위젯 키는 다른 화면으로 가면 지워지므로 ⑤ 패널용으로 따로 보관
 d = published(ticker)
 if d is None:
     g = next(g for g in cov.industry if ticker in g.members)

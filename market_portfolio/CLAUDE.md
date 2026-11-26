@@ -28,6 +28,10 @@ PYTHONPATH=src streamlit run app/main.py      # PF_OFFLINE=1(기본) → 합성 
 - 모듈 하나씩 작성·테스트. 전체 재생성 금지. 데이터 파일을 직접 읽히지 말고 digest만.
 - `PF_OFFLINE=1`에서 네트워크 없이 모든 화면이 떠야 한다.
 
+## 문서
+- `docs/user-guide.md` 사용 설명서, `docs/interactive-guide.html` 인터랙티브 가이드(단일 파일, 스크린샷 내장)
+- 화면을 바꾸면: 스크린샷 다시 찍기(`docs/screenshots/`, 합성 데이터) → `python docs/build_interactive_guide.py`. 가이드의 계산 규칙(국면 점수·5일 확정·종합 판단)은 `pf.macro`·`pf.synth.rules`와 같게 유지
+
 ## 배포 (맥미니)
 - 운영은 sielain.com 저장소(`/Users/sielain/docker`) compose의 `market-app` 서비스(`market_frontend`, 127.0.0.1:8502). `/docker/market-app` → 이 폴더 symlink.
 - push만 하면 맥미니 auto-deploy(5분)가 `market_portfolio/` 변경 시 재빌드. 운영 기록은 sielain.com `log.md`·`docs/market-subdomain-deploy.md`.

@@ -54,7 +54,8 @@ def _ticker(t: str):
 def _context(page_path: str) -> tuple[str, str | None]:
     cov = coverage()
     gid = st.session_state.get("group") or cov.defaults.get("groups", ["semis"])[0]
-    t = st.session_state.get("ticker")
+    # ④의 선택 위젯 키("ticker")는 다른 화면으로 가면 Streamlit이 지운다 → 마지막으로 본 종목을 따로 쓴다
+    t = st.session_state.get("ticker") or st.session_state.get("last_ticker")
     if page_path == "ticker":
         t = t if t in cov.tickers else "AVGO"  # ④ 첫 진입 기본값과 같게
         own = next((g.id for g in cov.industry if t in g.members), gid)
