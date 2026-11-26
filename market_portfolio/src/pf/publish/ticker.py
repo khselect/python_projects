@@ -28,6 +28,7 @@ from pf.sim.reaction_mc import simulate
 PUBLISH_DIR = DATA_DIR / "publish" / "ticker"
 PRED_DIR = DATA_DIR / "predictions"
 HISTORY_ROWS = 24
+MIN_PRICE_DAYS = 300  # 이보다 시세가 적은 종목은 계산에서 빼고 경고 (수집 실패·신규 상장)
 
 
 def _config_hash() -> str:
@@ -89,8 +90,15 @@ def publish_group(
     use_cache: bool = False,
     px: pd.DataFrame | None = None,
     earnings_max_age_days: float | None = None,
+    skipped: list[str] | None = None,
 ) -> list[Path]:
-    """그룹 계산·게시. px를 주면 시세를 다시 받지 않는다 (publish_all에서 한 번에 받은 시세)."""
+    """그룹 계산·게시. px를 주면 시세를 다시 받지 않는다 (publish_all에서 한 번에 받은 시세).
+
+    시세가 없거나 계산이 실패한 종목은 건너뛰고 skipped에 "티커: 이유"를 남긴다 — 한 종목 때문에
+    그룹 전체가 실패하지 않게 (2026-11-26 ISRG 수집 실패로 헬스케어 그룹 전체가 빠졌던 문제).
+    건너뛴 종목의 게시 JSON은 직전 결과가 그대로 남는다.
+    """
+    skipped = skipped if skipped is not None else []
     cov = load_coverage()
     cfg = load_model()
     sim_cfg, mix_cfg, gate = cfg["simulation"], cfg["mixture"], cfg["calibration_gate"]
@@ -103,26 +111,43 @@ def publish_group(
     else:
         px = px[tickers].dropna(how="all")
         earn = {t: fetch_earnings(source, t, earnings_max_age_days) for t in g.members}
+    if g.benchmark not in px or px[g.benchmark].notna().sum() < MIN_PRICE_DAYS:
+        raise ValueError(f"벤치마크 {g.benchmark} 시세 없음")
     bench = px[g.benchmark]
     asof = px.index[-1]
 
-    reactions = {t: build_reactions(px[t], bench, earn[t]) for t in g.members}
-    pooled = np.concatenate([r["car1"].dropna().to_numpy() for r in reactions.values() if len(r)])
+    members = []
+    for t in g.members:
+        if t not in px or px[t].notna().sum() < MIN_PRICE_DAYS:
+            skipped.append(f"{t}: 시세 없음")
+        else:
+            members.append(t)
+    reactions = {t: build_reactions(px[t], bench, earn[t]) for t in members}
+    if not reactions:
+        return []
+    pooled = np.concatenate([r["car1"].dropna().to_numpy() for r in reactions.values() if len(r)] or [np.array([])])
     prior = None
     if len(pooled) >= mix_cfg["min_group_events"]:
         prior = mixture.fit(pooled, nu=mix_cfg["nu"])
 
     PUBLISH_DIR.mkdir(parents=True, exist_ok=True)
     written = []
-    for t in g.members:
+    for t in members:
         r = reactions[t]
         x = r["car1"].dropna().to_numpy() if len(r) else np.array([])
         if prior is None and len(x) < 3:
+            skipped.append(f"{t}: 실적 표본 부족")
             continue
-        mix = mixture.fit(x, prior=prior, kappa=mix_cfg["kappa"], nu=mix_cfg["nu"])
-        _, sigma = daily_excess_sigma(px[t], bench, r)
-        seed = _seed(sim_cfg["seed"], t)
-        sim = simulate(mix, sigma, n_iter=sim_cfg["n_iter"], seed=seed, horizons=tuple(sim_cfg["horizons"]))
+        try:
+            mix = mixture.fit(x, prior=prior, kappa=mix_cfg["kappa"], nu=mix_cfg["nu"])
+            _, sigma = daily_excess_sigma(px[t], bench, r)
+            if not np.isfinite(sigma):
+                raise ValueError("일별 변동성 계산 불가")
+            seed = _seed(sim_cfg["seed"], t)
+            sim = simulate(mix, sigma, n_iter=sim_cfg["n_iter"], seed=seed, horizons=tuple(sim_cfg["horizons"]))
+        except Exception as e:
+            skipped.append(f"{t}: {type(e).__name__}: {e}")
+            continue
         n = int(len(x))
         payload = {
             "schema": 1,
@@ -178,8 +203,9 @@ def publish_all(source: Source | None = None, earnings_max_age_days: float = 3) 
     result = {"source": source.name, "asof": px.index[-1].date().isoformat(), "groups": {}}
     for g in cov.industry:
         try:
-            paths = publish_group(g.id, source, px=px, earnings_max_age_days=earnings_max_age_days)
-            result["groups"][g.id] = {"ok": True, "tickers": [p.stem for p in paths]}
+            skipped: list[str] = []
+            paths = publish_group(g.id, source, px=px, earnings_max_age_days=earnings_max_age_days, skipped=skipped)
+            result["groups"][g.id] = {"ok": True, "tickers": [p.stem for p in paths], "skipped": skipped}
         except Exception as e:  # 한 그룹 실패가 나머지를 막지 않게
             result["groups"][g.id] = {"ok": False, "error": f"{type(e).__name__}: {e}"}
     # ③ 그룹 상세·② 캘린더 (종목 JSON을 읽으므로 종목 계산 뒤에)

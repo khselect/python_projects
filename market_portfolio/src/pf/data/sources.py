@@ -154,7 +154,18 @@ class YahooSource(Source):
         if not isinstance(raw.columns, pd.MultiIndex):
             close.columns = tickers
         close.index = pd.DatetimeIndex(close.index).tz_localize(None).normalize()
-        return close[tickers].dropna(how="all")
+        close = close.reindex(columns=tickers)
+        # 일괄 다운로드에서 빠진 종목은 한 번 더 개별로 받는다 (Yahoo 일시 오류 대비)
+        for t in [t for t in tickers if close[t].notna().sum() == 0]:
+            try:
+                one = yf.download(t, start=start, auto_adjust=True, progress=False)
+                col = one["Close"]
+                col = col[t] if isinstance(col, pd.DataFrame) else col
+                col.index = pd.DatetimeIndex(col.index).tz_localize(None).normalize()
+                close[t] = col.reindex(close.index)
+            except Exception:
+                pass  # 그래도 없으면 publish 단계에서 그 종목만 건너뛰고 경고
+        return close.dropna(how="all")
 
     def earnings(self, ticker: str) -> pd.DataFrame:
         import yfinance as yf

@@ -50,7 +50,8 @@ def batch_status() -> str:
     from zoneinfo import ZoneInfo
 
     done = datetime.fromisoformat(st_["finished_at"]).astimezone(ZoneInfo("Asia/Seoul"))
-    return f"배치: {done:%m-%d %H:%M} {'정상' if st_.get('ok') else '실패 있음'}"
+    state = "실패 있음" if not st_.get("ok") else ("일부 누락" if st_.get("warnings") else "정상")
+    return f"배치: {done:%m-%d %H:%M} {state}"
 
 
 def tip(key: str) -> str | None:

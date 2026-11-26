@@ -41,3 +41,20 @@ def test_publish_is_reproducible(tmp_data):
     b = pub.load_published("NVDA")
     assert a["sim"]["horizons"] == b["sim"]["horizons"]
     assert a["repro"]["data_hash"] == b["repro"]["data_hash"]
+
+
+def test_missing_ticker_skipped_not_whole_group(tmp_data):
+    """한 종목 시세가 비어도 그룹의 나머지는 게시된다 (2026-11-26 ISRG 사례)."""
+    import numpy as np
+
+    class MissingISRG(SyntheticSource):
+        def prices(self, tickers, start="2012-01-01"):
+            px = super().prices(tickers, start)
+            if "ISRG" in px:
+                px["ISRG"] = np.nan
+            return px
+
+    skipped = []
+    paths = pub.publish_group("healthcare", source=MissingISRG(), skipped=skipped)
+    assert {p.stem for p in paths} == {"LLY", "UNH", "JNJ", "ABBV"}
+    assert skipped == ["ISRG: 시세 없음"]

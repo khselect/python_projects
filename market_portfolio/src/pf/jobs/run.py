@@ -79,6 +79,7 @@ def daily() -> int:
             recorded.append(record_prediction(t).name)
         except Exception as e:
             rec_err[t] = f"{type(e).__name__}: {e}"
+    warnings = [f"{gid}/{w}" for gid, g in res.get("groups", {}).items() for w in g.get("skipped", [])]
     ok = (
         "error" not in res
         and all(g["ok"] for g in res["groups"].values())
@@ -88,6 +89,7 @@ def daily() -> int:
     status = {
         **res,
         "macro": macro,
+        "warnings": warnings,
         "ok": ok,
         "started_at": started,
         "finished_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -101,6 +103,8 @@ def daily() -> int:
     for gid, g in res["groups"].items():
         if not g["ok"]:
             print(f"  ❌ {gid}: {g['error']}")
+    for w in warnings:
+        print(f"  ⚠️ 건너뜀 {w} (직전 결과 유지)")
     if "error" in res:
         print(f"  ❌ 수집 실패: {res['error']}")
     if not res.get("group_pages", {"ok": True})["ok"]:
