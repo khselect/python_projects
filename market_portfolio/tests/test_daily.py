@@ -21,6 +21,9 @@ def tmp_data(tmp_path, monkeypatch):
     monkeypatch.setattr(pub, "PRED_DIR", tmp_path / "predictions")
     monkeypatch.setattr(run, "PUBLISH_DIR", tmp_path / "publish" / "ticker")
     monkeypatch.setattr(run, "STATUS", tmp_path / "publish" / "status.json")
+    import pf.macro.publish as mpub
+
+    monkeypatch.setattr(mpub, "MACRO_PATH", tmp_path / "publish" / "macro.json")
     cfg = load_model()
     cfg["simulation"]["n_iter"] = 20_000  # 테스트 속도
     monkeypatch.setattr(pub, "load_model", lambda: cfg)
@@ -31,7 +34,8 @@ def tmp_data(tmp_path, monkeypatch):
 def test_daily_publishes_all_industry_groups(tmp_data):
     assert run.daily() == 0
     st = json.loads((tmp_data / "publish" / "status.json").read_text(encoding="utf-8"))
-    assert st["ok"] and len(st["groups"]) == 10
+    assert st["ok"] and len(st["groups"]) == 10 and st["macro"]["ok"]
+    assert (tmp_data / "publish" / "macro.json").exists()
     assert len(list((tmp_data / "publish" / "ticker").glob("*.json"))) == 50
     assert not list((tmp_data / "publish" / "ticker").glob("*.tmp"))
 

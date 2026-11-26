@@ -1,6 +1,7 @@
 """배치 명령.
 
-  python -m pf.jobs.run daily                                매일 배치: 산업 그룹 10개 전체 계산 + 실적 1~5일 전 종목 예측 기록
+  python -m pf.jobs.run daily                                매일 배치: 산업 그룹 10개 + 매크로 국면 + 실적 1~5일 전 예측 기록
+  python -m pf.jobs.run macro                                매크로 국면만 계산 (FRED_API_KEY 필요, 오프라인은 합성)
   python -m pf.jobs.run publish [--group semis] [--cache]   그룹 실적 반응 계산·게시
   python -m pf.jobs.run record AVGO                          실적 전 예측 기록 보관
   python -m pf.jobs.run show AVGO                            게시 JSON 요약 출력 (digest)
@@ -65,15 +66,23 @@ def daily() -> int:
         res = publish_all()
     except Exception as e:  # 시세 수집 자체가 실패한 경우
         res = {"groups": {}, "error": f"{type(e).__name__}: {e}"}
+    try:
+        from pf.macro.publish import publish_macro
+
+        publish_macro()
+        macro = {"ok": True}
+    except Exception as e:  # FRED 키 누락·수집 실패가 종목 계산 결과를 막지 않게
+        macro = {"ok": False, "error": f"{type(e).__name__}: {e}"}
     recorded, rec_err = [], {}
     for t in due_events() if "error" not in res else []:
         try:
             recorded.append(record_prediction(t).name)
         except Exception as e:
             rec_err[t] = f"{type(e).__name__}: {e}"
-    ok = "error" not in res and all(g["ok"] for g in res["groups"].values())
+    ok = "error" not in res and all(g["ok"] for g in res["groups"].values()) and macro["ok"]
     status = {
         **res,
+        "macro": macro,
         "ok": ok,
         "started_at": started,
         "finished_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -89,6 +98,8 @@ def daily() -> int:
             print(f"  ❌ {gid}: {g['error']}")
     if "error" in res:
         print(f"  ❌ 수집 실패: {res['error']}")
+    if not macro["ok"]:
+        print(f"  ❌ 매크로: {macro['error']}")
     return 0 if ok else 1
 
 
@@ -100,6 +111,7 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="pf.jobs.run")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("daily")
+    sub.add_parser("macro")
     p = sub.add_parser("publish")
     p.add_argument("--group", default="semis")
     p.add_argument("--cache", action="store_true", help="저장된 원천 데이터 재사용 (네트워크 호출 없음)")
@@ -111,6 +123,11 @@ def main(argv=None) -> int:
 
     if a.cmd == "daily":
         return daily()
+    if a.cmd == "macro":
+        from pf.macro.publish import publish_macro
+
+        print(publish_macro())
+        return 0
     if a.cmd == "publish":
         t0 = time.perf_counter()
         paths = publish_group(a.group, use_cache=a.cache)

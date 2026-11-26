@@ -76,3 +76,23 @@ def fan_chart(fan: dict, height: int = 300) -> go.Figure:
     fig.update_yaxes(ticksuffix="%")
     fig.update_layout(hovermode="x")
     return fig
+
+
+def regime_history(dates: list[str], scores: list[int], hi: int = 3, lo: int = -3, height: int = 260) -> go.Figure:
+    fig = go.Figure()
+    fig.add_hrect(y0=hi - 0.5, y1=6.5, fillcolor="#e6f0fc", line_width=0, layer="below")
+    fig.add_hrect(y0=-6.5, y1=lo + 0.5, fillcolor="#fde8e8", line_width=0, layer="below")
+    fig.add_annotation(x=0, xref="paper", y=6.2, text=f"확장 (≥ +{hi})", showarrow=False, xanchor="left",
+                       font=dict(color=INK_2, size=11))
+    fig.add_annotation(x=0, xref="paper", y=-6.2, text=f"위험회피 (≤ {lo})", showarrow=False, xanchor="left",
+                       font=dict(color=INK_2, size=11))
+    fig.add_scatter(
+        x=dates, y=scores, mode="lines", line=dict(color=MEDIAN, width=2, shape="hv"), name="국면 점수",
+        hovertemplate="%{x}<br>국면 점수 %{y:+d}<extra></extra>",
+    )
+    fig.add_hline(y=0, line=dict(color=INK, width=1))
+    fig = _layout(fig, height, "", "국면 점수")
+    fig.update_layout(showlegend=False, margin=dict(l=8, r=8, t=8, b=8), hovermode="x")
+    fig.update_xaxes(ticksuffix="", tickformat="%y.%m")
+    fig.update_yaxes(range=[-6.5, 6.5], tickvals=[-6, -3, 0, 3, 6])
+    return fig
