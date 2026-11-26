@@ -1,22 +1,21 @@
 """매크로 국면 판정 (PLAN.md §7.5, F16).
 
-6개 지표를 매 거래일 위험자산 우호(+1)·비우호(−1)로 판정하고 더해 국면 점수(−6~+6)를 만든다.
+6개 지표를 매 거래일 위험자산 우호(+1)·중립(0)·비우호(−1)로 판정하고 더해 국면 점수(−6~+6)를 만든다.
 수준보다 방향 전환을 본다. 원 신호가 5거래일 연속 유지돼야 전환으로 인정한다(깜빡임 방지).
+중립 구간은 config/model.yaml macro.neutral (v0.14 결정 B: 점수가 짝수만 나오던 문제 해소).
 
-| 지표     | +1 (우호)                                         | −1 (비우호)                                    |
-|----------|---------------------------------------------------|------------------------------------------------|
-| 유동성   | GDP 전년비 − 기준금리 > 0, 6개월 금리 동결·인하,    | 그 외 (갭 ≤ 0, 금리 인상, 갭 0.5%p 이상 축소)    |
-|          | 갭이 6개월간 0.5%p 넘게 줄지 않음                   |                                                |
-| 원자재   | DBC > 200일선                                     | DBC ≤ 200일선                                  |
-| 시장 폭  | RSP/SPY > 200일선, 괴리 없음                       | RSP/SPY ≤ 200일선 또는 괴리                     |
-|          |                                                   | (SPY 52주 고점 3% 이내인데 RSP/SPY 고점 대비 −5%↓) |
-| 신용     | 하이일드 스프레드 3개월 변화 ≤ 0 (축소)            | 3개월 확대                                      |
-| 금리곡선 | 10Y−2Y > 0 이고 마지막 역전 후 182일 이상           | 역전 중 또는 역전 해소 후 182일 이내              |
-| 달러     | 광의 달러지수 ≤ 200일선 이고 6개월 +3% 미만        | 200일선 위 또는 6개월 +3% 이상                   |
+| 지표     | +1 (우호)                                    | 0 (중립)                         | −1 (비우호)                                   |
+|----------|----------------------------------------------|----------------------------------|-----------------------------------------------|
+| 유동성   | 갭 ≥ 0.5%p, 6개월 금리 동결·인하, 갭 급축소 없음 | 갭 0~0.5%p (그 외 조건 충족)       | 갭 ≤ 0, 6개월 금리 인상, 갭 0.5%p 넘게 축소      |
+| 원자재   | DBC가 200일선 +1% 위                          | 200일선 ±1%                       | 200일선 −1% 아래                               |
+| 시장 폭  | RSP/SPY가 200일선 +1% 위, 괴리 없음            | 200일선 ±1%                       | 200일선 −1% 아래 또는 괴리                       |
+| 신용     | 하이일드 스프레드 3개월 −0.10%p 넘게 축소        | 3개월 변화 ±0.10%p                | 3개월 +0.10%p 넘게 확대                         |
+| 금리곡선 | 10Y−2Y ≥ 0.25%p, 마지막 역전 후 182일 이상      | 0~0.25%p, 역전 후 182일 이상        | 역전 중 또는 역전 해소 후 182일 이내              |
+| 달러     | 광의 달러지수가 200일선 −1% 아래, 6개월 +3% 미만 | 200일선 ±1%, 6개월 +3% 미만        | 200일선 +1% 위 또는 6개월 +3% 이상               |
 
-시장 폭은 "RSP/SPY 신고가 동반"을 200일선 위로 근사한다.
+괴리: SPY가 52주 고점 3% 이내인데 RSP/SPY는 고점 대비 −5% 이하 (소수 대형주만 오르는 상승).
 GDP는 분기 말 약 30일 뒤 발표 → 발표일 기준으로만 반영(미래 정보 누수 방지).
-신용 시리즈는 FRED에 최근 3년만 있어, 그 이전은 신호 없음(0)으로 두고 표시한다.
+신용 시리즈는 FRED에 최근 3년만 있어, 그 이전은 신호 없음(점수 0 기여)으로 둔다.
 """
 
 from __future__ import annotations
@@ -77,8 +76,17 @@ def confirm(raw: pd.Series, days: int = CONFIRM_DAYS) -> pd.Series:
     return pd.Series(out, index=raw.index)
 
 
+DEFAULT_NEUTRAL = {"ma_band": 0.01, "liquidity_gap": 0.5, "credit_d3m": 0.10, "curve_flat": 0.25}
+
+
 def _sign(cond: pd.Series, valid: pd.Series) -> pd.Series:
     return pd.Series(np.where(cond, 1.0, -1.0), index=cond.index).where(valid)
+
+
+def _tri(pos: pd.Series, neg: pd.Series, valid: pd.Series) -> pd.Series:
+    """neg가 우선: neg → −1, pos → +1, 둘 다 아니면 0 (중립)."""
+    out = np.where(neg, -1.0, np.where(pos, 1.0, 0.0))
+    return pd.Series(out, index=valid.index).where(valid)
 
 
 def gdp_yoy_available(gdp: pd.Series, lag_days: int = 30) -> pd.Series:
@@ -96,8 +104,10 @@ def days_since_inversion(curve: pd.Series) -> pd.Series:
     return d.fillna(10_000).where(curve.notna())
 
 
-def compute(prices: pd.DataFrame, fred: dict[str, pd.Series]) -> pd.DataFrame:
-    """prices: DBC·RSP·SPY 수정 종가(거래일 index). fred: SERIES 키별 시계열."""
+def compute(prices: pd.DataFrame, fred: dict[str, pd.Series], neutral: dict | None = None) -> pd.DataFrame:
+    """prices: DBC·RSP·SPY 수정 종가(거래일 index). fred: SERIES 키별 시계열. neutral: 중립 구간."""
+    nb = {**DEFAULT_NEUTRAL, **(neutral or {})}
+    band = nb["ma_band"]
     idx = prices.index
     on = lambda s: s.reindex(idx.union(s.index)).ffill().reindex(idx)  # noqa: E731
     df = pd.DataFrame(index=idx)
@@ -110,14 +120,17 @@ def compute(prices: pd.DataFrame, fred: dict[str, pd.Series]) -> pd.DataFrame:
     d_gap = gap - gap.shift(D6M)
     df["val_liquidity_gdp"], df["val_liquidity_rate"] = gdp, rate
     df["val_liquidity_gap"], df["val_liquidity_drate6m"], df["val_liquidity_dgap6m"] = gap, d_rate, d_gap
-    df["raw_liquidity"] = _sign((gap > 0) & (d_rate <= 0) & (d_gap >= -0.5), gap.notna() & d_rate.notna() & d_gap.notna())
+    liq_ok = gap.notna() & d_rate.notna() & d_gap.notna()
+    liq_neg = (gap <= 0) | (d_rate > 0) | (d_gap < -0.5)
+    df["raw_liquidity"] = _tri(gap >= nb["liquidity_gap"], liq_neg, liq_ok)
 
     # 원자재
     dbc = prices["DBC"]
     ma = dbc.rolling(MA).mean()
-    df["val_commodity_vs_ma"] = dbc / ma - 1
+    c_ma = dbc / ma - 1
+    df["val_commodity_vs_ma"] = c_ma
     df["val_commodity_vs_high"] = dbc / dbc.rolling(D1Y).max() - 1
-    df["raw_commodity"] = _sign(dbc > ma, ma.notna())
+    df["raw_commodity"] = _tri(c_ma > band, c_ma < -band, ma.notna())
 
     # 시장 폭
     ratio = prices["RSP"] / prices["SPY"]
@@ -125,29 +138,31 @@ def compute(prices: pd.DataFrame, fred: dict[str, pd.Series]) -> pd.DataFrame:
     spy_hi = prices["SPY"] / prices["SPY"].rolling(D1Y).max() - 1
     r_hi = ratio / ratio.rolling(D1Y).max() - 1
     diverge = (spy_hi >= -0.03) & (r_hi <= -0.05)
-    df["val_breadth_vs_ma"], df["val_breadth_vs_high"], df["val_breadth_spy_vs_high"] = ratio / rma - 1, r_hi, spy_hi
+    b_ma = ratio / rma - 1
+    df["val_breadth_vs_ma"], df["val_breadth_vs_high"], df["val_breadth_spy_vs_high"] = b_ma, r_hi, spy_hi
     df["val_breadth_divergence"] = diverge.astype(float)
-    df["raw_breadth"] = _sign((ratio > rma) & ~diverge, rma.notna() & r_hi.notna())
+    df["raw_breadth"] = _tri(b_ma > band, (b_ma < -band) | diverge, rma.notna() & r_hi.notna())
 
     # 신용 (값은 내부 전용)
     hy = on(fred["BAMLH0A0HYM2"])
     hy = hy.where(idx >= fred["BAMLH0A0HYM2"].dropna().index.min()) if fred["BAMLH0A0HYM2"].notna().any() else hy * np.nan
     d_hy = hy - hy.shift(D3M)
     df["val_credit_d3m"] = d_hy
-    df["raw_credit"] = _sign(d_hy <= 0, d_hy.notna())
+    df["raw_credit"] = _tri(d_hy < -nb["credit_d3m"], d_hy > nb["credit_d3m"], d_hy.notna())
 
     # 금리곡선
     curve = on(fred["T10Y2Y"])
     since = days_since_inversion(curve)
     df["val_curve"], df["val_curve_days_since_inv"] = curve, since
-    df["raw_curve"] = _sign((curve > 0) & (since >= 182), curve.notna())
+    df["raw_curve"] = _tri(curve >= nb["curve_flat"], (curve < 0) | (since < 182), curve.notna())
 
     # 달러
     usd = on(fred["DTWEXBGS"])
     uma = usd.rolling(MA, min_periods=150).mean()
     u6 = usd / usd.shift(D6M) - 1
-    df["val_dollar_vs_ma"], df["val_dollar_6m"] = usd / uma - 1, u6
-    df["raw_dollar"] = _sign((usd <= uma) & (u6 < 0.03), uma.notna() & u6.notna())
+    d_ma = usd / uma - 1
+    df["val_dollar_vs_ma"], df["val_dollar_6m"] = d_ma, u6
+    df["raw_dollar"] = _tri(d_ma < -band, (d_ma > band) | (u6 >= 0.03), uma.notna() & u6.notna())
 
     for ind in INDICATORS:
         df[f"sig_{ind.key}"] = confirm(df[f"raw_{ind.key}"])

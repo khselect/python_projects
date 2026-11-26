@@ -21,3 +21,8 @@ macro:
   regime_expansion_min: 3    # 점수 >= +3
   regime_riskoff_max: -3     # 점수 <= -3
   confirm_days: 5            # 신호 5거래일 유지 시 전환 인정
+  neutral:                   # 지표별 중립(0) 구간 — 이 안이면 우호도 비우호도 아님 (v0.14 결정 B)
+    ma_band: 0.01            # 원자재·시장 폭·달러: 200일선 ±1% 이내
+    liquidity_gap: 0.5       # 유동성: GDP 전년비 − 기준금리가 0~0.5%p
+    credit_d3m: 0.10         # 신용: 하이일드 스프레드 3개월 변화 ±0.10%p 이내
+    curve_flat: 0.25         # 금리곡선: 역전 해소 6개월 후에도 10Y−2Y가 0~0.25%p

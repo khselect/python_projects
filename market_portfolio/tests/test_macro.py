@@ -58,10 +58,11 @@ def macro_df():
 def test_compute_scores_in_range_and_credit_only_recent(macro_df):
     df = macro_df
     assert df["score"].between(-6, 6).all()
-    assert set(df[[f"sig_{i.key}" for i in INDICATORS]].stack().unique()) <= {-1.0, 1.0}
+    assert set(df[[f"sig_{i.key}" for i in INDICATORS]].stack().unique()) <= {-1.0, 0.0, 1.0}
+    assert (df["score"] % 2 == 1).any()  # 중립 구간이 있어 홀수 점수도 나온다 (결정 B)
     # 신용 신호는 최근 3년 이전에는 없다
     assert df["sig_credit"].loc[:"2022-01-01"].isna().all()
-    assert df["sig_credit"].iloc[-1] in (-1.0, 1.0)
+    assert df["sig_credit"].iloc[-1] in (-1.0, 0.0, 1.0)
     assert df["n_signals"].iloc[-1] == 6
 
 
@@ -81,3 +82,11 @@ def test_publish_macro_offline(tmp_path, monkeypatch, macro_df):
     assert 90 <= len(d["history"]["score"]) <= 110  # 2년 주간
     assert "FRED" in d["notice"]["fred"]
     assert p.stat().st_size < 50 * 1024
+
+
+def test_neutral_bands_per_indicator():
+    from pf.macro.indicators import _tri
+
+    v = pd.Series([0.02, 0.005, -0.005, -0.02])
+    sig = _tri(v > 0.01, v < -0.01, v.notna()).tolist()
+    assert sig == [1.0, 0.0, 0.0, -1.0]

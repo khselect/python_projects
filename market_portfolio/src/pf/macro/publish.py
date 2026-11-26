@@ -76,6 +76,7 @@ def build(df: pd.DataFrame, source_name: str, hi: int = 3, lo: int = -3) -> dict
         "regime": regime_of(last["score"], hi, lo),
         "regime_since": since.date().isoformat(),
         "thresholds": {"expansion": hi, "riskoff": lo},
+        "neutral_bands": True,
         "indicators": indicators,
         "compare": {str(m): _snapshot(df, asof - pd.DateOffset(months=m), hi, lo) for m in COMPARE_MONTHS},
         "history": {"dates": [d.date().isoformat() for d in weekly.index], "score": [int(v) for v in weekly]},
@@ -92,7 +93,7 @@ def publish_macro(source: Source | None = None, fred=None, prices: pd.DataFrame 
     series = fred.frame(list(SERIES), start="2012-01-01")
     for k, s in series.items():
         store.save_prices(f"{fred.name}_{k}", s.to_frame(k))
-    df = compute(prices[MACRO_TICKERS].dropna(), series)
+    df = compute(prices[MACRO_TICKERS].dropna(), series, cfg.get("neutral"))
     payload = build(df, f"{source.name}+{fred.name}", cfg["regime_expansion_min"], cfg["regime_riskoff_max"])
     MACRO_PATH.parent.mkdir(parents=True, exist_ok=True)
     _write_json(MACRO_PATH, payload, separators=(",", ":"))

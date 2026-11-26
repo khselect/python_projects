@@ -11,8 +11,8 @@ from charts import regime_history
 from common import tip
 from pf.macro.publish import MACRO_PATH
 
-SIG = {1.0: "▲ 우호", -1.0: "▼ 비우호", None: "— 신호 없음"}
-SIG_COLOR = {"▲ 우호": "#1757ac", "▼ 비우호": "#c22b2c", "— 신호 없음": "#666666"}
+SIG = {1.0: "▲ 우호", 0.0: "● 중립", -1.0: "▼ 비우호", None: "— 신호 없음"}
+SIG_COLOR = {"▲ 우호": "#1757ac", "● 중립": "#666666", "▼ 비우호": "#c22b2c", "— 신호 없음": "#999999"}
 
 
 @st.cache_data(ttl=300)
@@ -61,7 +61,7 @@ c1.metric("국면 점수", f"{d['score']:+d}", help=tip("regime_score"))
 c2.metric("국면", d["regime"], help="+3 이상 확장 · −3 이하 위험회피 · 그 사이 중립·전환")
 c3.markdown(
     f"**{d['regime_since']}**부터 이 국면  \n"
-    f"기준일 {d['asof']} · 신호 {d['n_signals']}/6개 · 각 신호는 5거래일 연속 유지돼야 전환으로 인정"
+    f"기준일 {d['asof']} · 신호 {d['n_signals']}/6개 · 각 신호는 5거래일 연속 유지돼야 전환으로 인정 · 지표마다 우호(+1)·중립(0)·비우호(−1)"
 )
 
 # ── 비교 기준 (상대 기준) ─────────────────────────────────
