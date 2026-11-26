@@ -171,7 +171,7 @@ def publish_all(source: Source | None = None, earnings_max_age_days: float = 3) 
     """산업 그룹 전체. 시세는 한 번에 받고, 실적일은 max_age 안의 캐시를 재사용한다."""
     cov = load_coverage()
     source = source or get_source()
-    tickers = list(dict.fromkeys([t for g in cov.industry for t in (*g.members, g.benchmark)]))
+    tickers = list(dict.fromkeys([t for g in cov.groups for t in (*g.members, g.benchmark)]))
     t0 = time.perf_counter()
     px = source.prices(tickers)
     store.save_prices(source.name, px)
@@ -182,6 +182,15 @@ def publish_all(source: Source | None = None, earnings_max_age_days: float = 3) 
             result["groups"][g.id] = {"ok": True, "tickers": [p.stem for p in paths]}
         except Exception as e:  # 한 그룹 실패가 나머지를 막지 않게
             result["groups"][g.id] = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+    # ③ 그룹 상세·② 캘린더 (종목 JSON을 읽으므로 종목 계산 뒤에)
+    try:
+        from pf.publish.group import publish_groups
+
+        earn = {t: fetch_earnings(source, t, max_age_days=float("inf")) for g in cov.industry for t in g.members}
+        publish_groups(px, earn)
+        result["group_pages"] = {"ok": True}
+    except Exception as e:
+        result["group_pages"] = {"ok": False, "error": f"{type(e).__name__}: {e}"}
     result["seconds"] = round(time.perf_counter() - t0, 1)
     return result
 

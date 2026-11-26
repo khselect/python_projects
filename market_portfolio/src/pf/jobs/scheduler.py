@@ -39,12 +39,16 @@ def ran_today(now: datetime, at: str) -> bool:
     return done >= today_slot
 
 
+TZ = ZoneInfo(os.environ.get("PF_TZ", "Asia/Seoul"))
+
+
 def log(msg: str) -> None:
-    print(f"{datetime.now().isoformat(timespec='seconds')} {msg}", flush=True)
+    """로그 시각도 실행 시간대(KST)로 — 컨테이너 기본 UTC와 섞이지 않게."""
+    print(f"{datetime.now(TZ).isoformat(timespec='seconds')} {msg}", flush=True)
 
 
 def main() -> int:
-    tz = ZoneInfo(os.environ.get("PF_TZ", "Asia/Seoul"))
+    tz = TZ
     at = os.environ.get("PF_DAILY_AT", "07:15")
     log(f"scheduler 시작 — 매일 {at} ({tz.key})")
     if not ran_today(datetime.now(tz), at):

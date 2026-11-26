@@ -64,11 +64,11 @@ def sidebar() -> None:
     with st.sidebar:
         st.subheader("관심 그룹")
         options = [g.id for g in cov.groups]
-        default = cov.defaults.get("groups", options[:1])[0]
+        if st.session_state.get("group") not in options:
+            st.session_state["group"] = cov.defaults.get("groups", options[:1])[0]
         st.radio(
             "그룹",
             options,
-            index=options.index(st.session_state.get("group", default)),
             format_func=lambda gid: cov.group(gid).name,
             key="group",
             label_visibility="collapsed",

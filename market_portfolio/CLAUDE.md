@@ -42,8 +42,9 @@ python -m pf.jobs.run record AVGO                        # 실적 전 예측 기
 ```
 - 운영: `docker compose exec market-app python -m pf.jobs.run ...` (`/Users/sielain/docker`에서)
 - 매일 07:15 KST `market-jobs` 컨테이너(`pf.jobs.scheduler`)가 `daily` 실행. 결과 `data/publish/status.json`
+- 그룹·캘린더: `pf.events.reactions.event_paths`(CAR 경로) → `pf.publish.group`(data/publish/group/*.json, calendar.json). 종목 JSON을 읽으므로 publish_all에서 종목 계산 뒤 실행
 - 매크로: `pf.data.fred`(FRED, 키 `FRED_API_KEY`) → `pf.macro.indicators`(6개 신호, 5일 확정) → `pf.macro.publish`(data/publish/macro.json). 신용(ICE) 값은 화면에 내지 않는다
 - 모델: `pf.events.reactions`(반응일·β 조정 초과수익) → `pf.sim.mixture`(3성분 t 혼합 MAP-EM, 그룹 축소) → `pf.sim.reaction_mc`(40만 회)
 
 ## MVP 순서 (PLAN.md §13)
-골격 → ④ 종목 반응 분포(AVGO, 12/09 실적 전) → ① 매크로 국면 → ②③ 그룹.
+골격 → ④ 종목 반응 분포(AVGO, 12/09 실적 전) → ① 매크로 국면 → ②③ 그룹 — 모두 구현됨(11-26). 다음은 v1(F8·F9·F17·F19·F20·F21).

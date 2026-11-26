@@ -24,6 +24,10 @@ def tmp_data(tmp_path, monkeypatch):
     import pf.macro.publish as mpub
 
     monkeypatch.setattr(mpub, "MACRO_PATH", tmp_path / "publish" / "macro.json")
+    import pf.publish.group as gpub
+
+    monkeypatch.setattr(gpub, "GROUP_DIR", tmp_path / "publish" / "group")
+    monkeypatch.setattr(gpub, "CALENDAR_PATH", tmp_path / "publish" / "calendar.json")
     cfg = load_model()
     cfg["simulation"]["n_iter"] = 20_000  # 테스트 속도
     monkeypatch.setattr(pub, "load_model", lambda: cfg)
@@ -36,6 +40,17 @@ def test_daily_publishes_all_industry_groups(tmp_data):
     st = json.loads((tmp_data / "publish" / "status.json").read_text(encoding="utf-8"))
     assert st["ok"] and len(st["groups"]) == 10 and st["macro"]["ok"]
     assert (tmp_data / "publish" / "macro.json").exists()
+    assert st["group_pages"]["ok"]
+    groups = sorted(p.stem for p in (tmp_data / "publish" / "group").glob("*.json"))
+    assert len(groups) == 11 and "bigtech" in groups  # 산업 10 + 테마 1
+    g = json.loads((tmp_data / "publish" / "group" / "semis.json").read_text(encoding="utf-8"))
+    assert g["car"]["n_events"] > 100 and len(g["car"]["mean"]) == 69
+    assert len(g["heatmap"]["years"]) >= 10
+    for f in (tmp_data / "publish" / "group").glob("*.json"):
+        assert f.stat().st_size < 50 * 1024
+    cal = json.loads((tmp_data / "publish" / "calendar.json").read_text(encoding="utf-8"))
+    assert len(cal["groups"]) == 11
+    assert all(0 <= e["days"] <= 84 for grp in cal["groups"] for e in grp["events"])
     assert len(list((tmp_data / "publish" / "ticker").glob("*.json"))) == 50
     assert not list((tmp_data / "publish" / "ticker").glob("*.tmp"))
 

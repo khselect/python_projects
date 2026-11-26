@@ -96,3 +96,49 @@ def regime_history(dates: list[str], scores: list[int], hi: int = 3, lo: int = -
     fig.update_xaxes(ticksuffix="", tickformat="%y.%m")
     fig.update_yaxes(range=[-6.5, 6.5], tickvals=[-6, -3, 0, 3, 6])
     return fig
+
+
+DIVERGING = [[0.0, DOWN], [0.5, "#efefef"], [1.0, UP]]
+
+
+def month_heatmap(years: list[int], values: list[list], clip: float = 0.15) -> go.Figure:
+    """연도×월 수익률. 0 = 회색, 상승 파랑·하락 빨강, ±15%에서 포화. 칸마다 값 표시(색만으로 읽지 않게)."""
+    z = [[None if v is None else v * 100 for v in row] for row in values]
+    text = [["" if v is None else f"{v * 100:+.1f}" for v in row] for row in values]
+    months = [f"{m}월" for m in range(1, 13)]
+    fig = go.Figure(go.Heatmap(
+        z=z, x=months, y=[str(y) for y in years], text=text, texttemplate="%{text}",
+        textfont=dict(size=11), colorscale=DIVERGING, zmid=0, zmin=-clip * 100, zmax=clip * 100,
+        xgap=2, ygap=2, hovertemplate="%{y}년 %{x}: %{z:+.1f}%<extra></extra>",
+        colorbar=dict(title="%", thickness=10, len=0.8),
+    ))
+    fig.update_layout(
+        height=max(240, 26 * len(years) + 60), margin=dict(l=8, r=8, t=8, b=8),
+        plot_bgcolor="#ffffff", paper_bgcolor="#ffffff", font=dict(family=FONT, size=12, color=INK_2),
+    )
+    fig.update_yaxes(autorange="reversed", type="category")
+    fig.update_xaxes(side="top")
+    return fig
+
+
+def car_chart(car: dict, height: int = 300) -> go.Figure:
+    d = car["days"]
+    pc = lambda k: [None if v is None else v * 100 for v in car[k]]  # noqa: E731
+    fig = go.Figure()
+    fig.add_scatter(x=d, y=pc("p75"), line=dict(width=0), showlegend=False, hoverinfo="skip")
+    fig.add_scatter(x=d, y=pc("p25"), fill="tonexty", fillcolor=BAND_OUTER, line=dict(width=0),
+                    name="이벤트 25~75%", hoverinfo="skip")
+    fig.add_scatter(
+        x=d, y=pc("mean"), line=dict(color=MEDIAN, width=2), name="평균",
+        customdata=list(zip(pc("p25"), pc("p75"))),
+        hovertemplate="%{x:+d}일<br>평균 %{y:+.1f}%<br>25~75%: %{customdata[0]:+.1f} ~ %{customdata[1]:+.1f}%<extra></extra>",
+    )
+    fig.add_vline(x=0, line=dict(color=INK_2, width=1, dash="dot"), annotation_text="반응일",
+                  annotation_position="bottom right", annotation_font_color=INK_2)
+    fig.add_hline(y=0, line=dict(color=INK, width=1))
+    fig = _layout(fig, height, "반응일 기준 거래일", "누적 초과수익률")
+    fig.update_layout(legend=dict(x=1, xanchor="right", y=1.0, yanchor="bottom"))
+    fig.update_xaxes(ticksuffix="", tickvals=[-5, 0, 5, 21, 42, 63])
+    fig.update_yaxes(ticksuffix="%")
+    fig.update_layout(hovermode="x")
+    return fig

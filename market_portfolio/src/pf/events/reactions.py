@@ -100,3 +100,34 @@ def daily_excess_sigma(
     if len(reactions):
         ex = ex.drop(pd.to_datetime(reactions["reaction_date"]), errors="ignore")
     return beta, float(ex.std(ddof=1))
+
+
+def event_paths(
+    prices: pd.Series,
+    bench: pd.Series,
+    earnings: pd.DataFrame,
+    pre: int = 5,
+    post: int = 63,
+) -> pd.DataFrame:
+    """실적 이벤트별 누적 초과수익률 경로 (F13 CAR).
+
+    행 = 이벤트(반응일), 열 = 반응일 기준 상대 거래일 −pre … +post.
+    값 = −pre일부터 그날까지의 AR 합 (AR = R − β·R_bench, β는 build_reactions와 같은 규칙).
+    앞뒤 창이 다 있는 이벤트만.
+    """
+    px = pd.concat([prices.rename("p"), bench.rename("b")], axis=1).dropna()
+    days = px.index
+    ret = px.pct_change()
+    r, m = ret["p"].to_numpy(), ret["b"].to_numpy()
+    cols = list(range(-pre, post + 1))
+    rows, idx = [], []
+    for ev in earnings.itertuples(index=False):
+        j = reaction_index(days, ev.date, ev.timing)
+        if j is None or j < BETA_WINDOW + BETA_GAP + pre or j + post >= len(days):
+            continue
+        lo, hi = j - BETA_GAP - BETA_WINDOW, j - BETA_GAP
+        beta = _beta(r[lo:hi], m[lo:hi])
+        ar = r[j - pre : j + post + 1] - beta * m[j - pre : j + post + 1]
+        rows.append(np.cumsum(ar))
+        idx.append(days[j])
+    return pd.DataFrame(rows, index=pd.DatetimeIndex(idx, name="reaction_date"), columns=cols)

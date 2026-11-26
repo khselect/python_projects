@@ -79,7 +79,12 @@ def daily() -> int:
             recorded.append(record_prediction(t).name)
         except Exception as e:
             rec_err[t] = f"{type(e).__name__}: {e}"
-    ok = "error" not in res and all(g["ok"] for g in res["groups"].values()) and macro["ok"]
+    ok = (
+        "error" not in res
+        and all(g["ok"] for g in res["groups"].values())
+        and res.get("group_pages", {"ok": True})["ok"]
+        and macro["ok"]
+    )
     status = {
         **res,
         "macro": macro,
@@ -98,6 +103,8 @@ def daily() -> int:
             print(f"  ❌ {gid}: {g['error']}")
     if "error" in res:
         print(f"  ❌ 수집 실패: {res['error']}")
+    if not res.get("group_pages", {"ok": True})["ok"]:
+        print(f"  ❌ 그룹·캘린더: {res['group_pages']['error']}")
     if not macro["ok"]:
         print(f"  ❌ 매크로: {macro['error']}")
     return 0 if ok else 1
