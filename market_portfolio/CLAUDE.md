@@ -13,7 +13,8 @@
 
 ## 구조
 - `src/pf/` 패키지 (PYTHONPATH=src). 설정은 `pf.settings`, YAML 로드·검증은 `pf.config`.
-- `app/main.py` Streamlit 진입점(`st.navigation`), 화면은 `app/views/`, 공통은 `app/common.py`.
+- `app/main.py` Streamlit 진입점(`st.navigation`), 화면은 `app/views/`(①~④), 공통은 `app/common.py`.
+- 세로 3분할: 오른쪽 ⑤ 종합 패널 `app/panel.py`(항상 표시, sticky). 규칙은 `pf.synth.rules`(F19). 패널은 화면보다 먼저 렌더.
 - `config/coverage.yaml` 50종목(10그룹×5) + 테마. 테마 종목은 반드시 50종목 안.
 - `config/glossary.yaml` ⓘ 가이드 단일 출처. `config/model.yaml` 시뮬·보정 관문 기본값.
 - `data/` 는 커밋 안 함 (Parquet·SQLite·게시 JSON).
