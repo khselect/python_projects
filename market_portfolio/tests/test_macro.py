@@ -82,6 +82,9 @@ def test_publish_macro_offline(tmp_path, monkeypatch, macro_df):
     assert 90 <= len(d["history"]["score"]) <= 110  # 2년 주간
     assert "FRED" in d["notice"]["fred"]
     assert p.stat().st_size < 50 * 1024
+    m = d["markets"]
+    assert set(m["series"]) == {"QQQ", "OEF"} and m["series"]["QQQ"][0] == 100.0 and m["ratio"][0] == 100.0
+    assert len(m["dates"]) == len(m["ratio"]) and abs(len(m["dates"]) - len(d["history"]["dates"])) <= 2
 
 
 def test_neutral_bands_per_indicator():

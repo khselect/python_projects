@@ -82,7 +82,24 @@ else:
 # ── 연도×월 수익률 ────────────────────────────────────────
 h = d["heatmap"]
 st.subheader("연도×월 수익률 (동일가중)")
-st.plotly_chart(month_heatmap(h["years"], h["values"]), width="stretch", config={"displayModeBar": False})
+HEAT_MODES = {"그룹 수익률": "group", f"{d['group']['benchmark']} 대비 차이": "excess", "월중 최대 낙폭": "mdd"}
+has_extra = "bench_values" in h and "mdd" in h  # 이전 배치 JSON에는 없음 → 다음 배치 후 표시
+if has_extra:
+    if st.session_state.get("heat_mode") not in HEAT_MODES:
+        st.session_state["heat_mode"] = "그룹 수익률"
+    sel = st.segmented_control("칸에 표시할 값", list(HEAT_MODES), key="heat_mode") or "그룹 수익률"
+    mode = HEAT_MODES[sel]
+else:
+    mode = "group"
+st.plotly_chart(
+    month_heatmap(h["years"], h["values"], h.get("bench_values"), h.get("mdd"), mode, d["group"]["benchmark"]),
+    width="stretch", config={"displayModeBar": False},
+)
+st.caption({
+    "group": "칸 = 그 달 그룹 수익률(전달 말 → 이번 달 말). 마우스를 올리면 벤치마크·차이·월중 최대 낙폭도 보입니다.",
+    "excess": f"칸 = 그룹 − {d['group']['benchmark']} (%p). 파랑 = 벤치마크보다 강함, 빨강 = 약함.",
+    "mdd": "칸 = 월중 최대 낙폭: 그 달 안에서 고점 대비 가장 많이 빠진 정도. 월말 수익률이 작아도 월중에 크게 흔들렸는지 확인.",
+}[mode] + ("" if has_extra else " (벤치마크·월중 낙폭은 다음 매일 배치 뒤 표시)"))
 annual = pd.DataFrame({
     "연도": [str(y) + ("(진행 중)" if h["partial_last_year"] and y == h["years"][-1] else "") for y in h["years"]],
     "그룹": [pct(v) for v in h["annual"]],

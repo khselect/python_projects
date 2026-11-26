@@ -43,3 +43,17 @@ def test_monthly_heatmap_equal_weight_and_annual():
     assert all(abs(v - 0.01) < 1e-9 for v in row[1:])
     assert abs(h["annual"][0] - (1.01**11 - 1)) < 1e-5  # JSON은 소수 5자리 반올림
     assert h["bench_annual"][0] == 0.0
+
+
+def test_heatmap_month_mdd_catches_intramonth_drop():
+    # 10월 말 100 → 11월 중순 78(−22%) → 11월 말 95: 월수익 −5%인데 월중 최대 낙폭 −22%
+    days = pd.bdate_range("2026-10-01", "2026-11-30")
+    a = pd.Series(100.0, index=days)
+    nov = days[days.month == 11]
+    a.loc[nov] = np.interp(np.arange(len(nov)), [0, len(nov) // 2, len(nov) - 1], [100, 78, 95])
+    px = pd.DataFrame({"A": a, "BM": pd.Series(100.0, index=days) * np.linspace(1, 1.02, len(days))})
+    h = monthly_heatmap(px, ["A"], "BM")
+    i = h["years"].index(2026)
+    assert abs(h["values"][i][10] - (-0.05)) < 1e-4
+    assert abs(h["mdd"][i][10] - (-0.22)) < 1e-4
+    assert h["bench_values"][i][10] > 0

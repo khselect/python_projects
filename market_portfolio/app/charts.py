@@ -92,8 +92,8 @@ def regime_history(dates: list[str], scores: list[int], hi: int = 3, lo: int = -
     )
     fig.add_hline(y=0, line=dict(color=INK, width=1))
     fig = _layout(fig, height, "", "국면 점수")
-    fig.update_layout(showlegend=False, margin=dict(l=8, r=8, t=8, b=8), hovermode="x")
-    fig.update_xaxes(ticksuffix="", tickformat="%y.%m")
+    fig.update_layout(showlegend=False, margin=dict(l=8, r=64, t=8, b=8), hovermode="x")
+    fig.update_xaxes(ticksuffix="", tickformat="%y.%m", range=[dates[0], dates[-1]])
     fig.update_yaxes(range=[-6.5, 6.5], tickvals=[-6, -3, 0, 3, 6])
     return fig
 
@@ -101,20 +101,46 @@ def regime_history(dates: list[str], scores: list[int], hi: int = 3, lo: int = -
 DIVERGING = [[0.0, DOWN], [0.5, "#efefef"], [1.0, UP]]
 
 
-def month_heatmap(years: list[int], values: list[list], clip: float = 0.15) -> go.Figure:
-    """연도×월 수익률. 0 = 회색, 상승 파랑·하락 빨강, ±15%에서 포화. 칸마다 값 표시(색만으로 읽지 않게)."""
-    z = [[None if v is None else v * 100 for v in row] for row in values]
-    text = [["" if v is None else f"{v * 100:+.1f}" for v in row] for row in values]
-    months = [f"{m}월" for m in range(1, 13)]
+DRAWDOWN = [[0.0, DOWN], [1.0, "#f4f4f4"]]  # 낙폭은 한 방향(0 이하)이라 단일 색 계열
+
+
+def month_heatmap(
+    years: list[int],
+    values: list[list],
+    bench: list[list] | None = None,
+    mdd: list[list] | None = None,
+    mode: str = "group",
+    bench_name: str = "벤치마크",
+) -> go.Figure:
+    """연도×월 히트맵. mode: group(그룹 수익률) | excess(벤치마크 대비 차이) | mdd(월중 최대 낙폭).
+
+    칸마다 값을 적어 색만으로 읽지 않게 한다. 마우스를 올리면 세 값을 모두 보여준다.
+    """
+    def grid(src):
+        return [[None if v is None else v * 100 for v in row] for row in (src or [[None] * 12 for _ in years])]
+
+    g, b, m = grid(values), grid(bench), grid(mdd)
+    ex = [[None if gv is None or bv is None else gv - bv for gv, bv in zip(gr, br)] for gr, br in zip(g, b)]
+    z, scale, zmin, zmax, zmid = {
+        "group": (g, DIVERGING, -15, 15, 0),
+        "excess": (ex, DIVERGING, -10, 10, 0),
+        "mdd": (m, DRAWDOWN, -25, 0, None),
+    }[mode]
+    text = [["" if v is None else f"{v:+.1f}" for v in row] for row in z]
+    fmt = lambda v: "—" if v is None else f"{v:+.1f}%"  # noqa: E731
+    custom = [[[fmt(g[i][j]), fmt(b[i][j]), fmt(ex[i][j]), fmt(m[i][j])] for j in range(12)] for i in range(len(years))]
     fig = go.Figure(go.Heatmap(
-        z=z, x=months, y=[str(y) for y in years], text=text, texttemplate="%{text}",
-        textfont=dict(size=11), colorscale=DIVERGING, zmid=0, zmin=-clip * 100, zmax=clip * 100,
-        xgap=2, ygap=2, hovertemplate="%{y}년 %{x}: %{z:+.1f}%<extra></extra>",
-        colorbar=dict(title="%", thickness=10, len=0.8),
+        z=z, x=[f"{k}월" for k in range(1, 13)], y=[str(y) for y in years], text=text, texttemplate="%{text}",
+        customdata=custom, textfont=dict(size=11), colorscale=scale, zmin=zmin, zmax=zmax,
+        **({"zmid": zmid} if zmid is not None else {}),
+        xgap=2, ygap=2, colorbar=dict(title="%", thickness=10, len=0.8),
+        hovertemplate=("<b>%{y}년 %{x}</b><br>그룹 %{customdata[0]}<br>" + bench_name +
+                       " %{customdata[1]}<br>차이 %{customdata[2]}<br>월중 최대 낙폭 %{customdata[3]}<extra></extra>"),
     ))
     fig.update_layout(
         height=max(240, 26 * len(years) + 60), margin=dict(l=8, r=8, t=8, b=8),
         plot_bgcolor="#ffffff", paper_bgcolor="#ffffff", font=dict(family=FONT, size=12, color=INK_2),
+        hoverlabel=dict(bgcolor="#ffffff", font=dict(color=INK)),
     )
     fig.update_yaxes(autorange="reversed", type="category")
     fig.update_xaxes(side="top")
@@ -141,4 +167,51 @@ def car_chart(car: dict, height: int = 300) -> go.Figure:
     fig.update_xaxes(ticksuffix="", tickvals=[-5, 0, 5, 21, 42, 63])
     fig.update_yaxes(ticksuffix="%")
     fig.update_layout(hovermode="x")
+    return fig
+
+
+SERIES_2 = {"QQQ": "#257de0", "OEF": "#f47230"}  # 범주형 1·2번 슬롯 (파랑·주황)
+
+
+def _regime_runs(dates: list[str], scores: list[int], hi: int, lo: int) -> list[tuple[str, str, str]]:
+    """연속된 확장·위험회피 주를 (시작, 끝, 종류) 구간으로."""
+    runs, cur, start = [], None, None
+    for d, s in zip(dates, scores):
+        r = "up" if s >= hi else ("down" if s <= lo else None)
+        if r != cur:
+            if cur:
+                runs.append((start, prev, cur))
+            cur, start = r, d
+        prev = d
+    if cur:
+        runs.append((start, prev, cur))
+    return runs
+
+
+def market_compare(m: dict, hist_dates: list[str], hist_scores: list[int], hi: int = 3, lo: int = -3,
+                   height: int = 280) -> go.Figure:
+    """Nasdaq-100·S&P 100 지수 비교 (시작 주 = 100, 한 축). 배경 = 국면 점수의 확장·위험회피 구간."""
+    fig = go.Figure()
+    for a, b, kind in _regime_runs(hist_dates, hist_scores, hi, lo):
+        fig.add_vrect(x0=a, x1=b, fillcolor=BAND_OUTER if kind == "up" else "#fde8e8", line_width=0, layer="below", opacity=0.8)
+    for t, ys in m["series"].items():
+        fig.add_scatter(x=m["dates"], y=ys, mode="lines", name=m["names"][t], line=dict(color=SERIES_2.get(t, MEDIAN), width=2),
+                        hovertemplate=f"{m['names'][t]}<br>%{{x}}: %{{y:.1f}}<extra></extra>")
+        fig.add_annotation(x=m["dates"][-1], y=ys[-1], text=f"{t} {ys[-1] - 100:+.0f}%", showarrow=False, xanchor="left",
+                           xshift=4, font=dict(size=11, color=INK))
+    fig.add_hline(y=100, line=dict(color=INK_2, width=1, dash="dot"))
+    fig = _layout(fig, height, "", "지수 (시작 = 100)")
+    fig.update_layout(margin=dict(l=8, r=64, t=36, b=8), hovermode="x unified")
+    fig.update_xaxes(ticksuffix="", tickformat="%y.%m", range=[hist_dates[0], hist_dates[-1]])  # 국면 점수 추이와 같은 기간
+    return fig
+
+
+def ratio_chart(m: dict, height: int = 180) -> go.Figure:
+    fig = go.Figure()
+    fig.add_scatter(x=m["dates"], y=m["ratio"], mode="lines", name="QQQ/OEF", line=dict(color=MEDIAN, width=2),
+                    hovertemplate="%{x}: %{y:.1f}<extra></extra>")
+    fig.add_hline(y=100, line=dict(color=INK_2, width=1, dash="dot"))
+    fig = _layout(fig, height, "", "QQQ/OEF")
+    fig.update_layout(showlegend=False, margin=dict(l=8, r=64, t=8, b=8))
+    fig.update_xaxes(ticksuffix="", tickformat="%y.%m", range=[m["dates"][0], m["dates"][-1]])
     return fig

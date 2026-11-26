@@ -7,7 +7,7 @@ import json
 import pandas as pd
 import streamlit as st
 
-from charts import regime_history
+from charts import market_compare, ratio_chart, regime_history
 from common import tip
 from pf.macro.publish import MACRO_PATH
 
@@ -100,6 +100,24 @@ st.plotly_chart(
     regime_history(h["dates"], h["score"], d["thresholds"]["expansion"], d["thresholds"]["riskoff"]),
     width="stretch", config={"displayModeBar": False},
 )
+
+# ── 지수 비교 (Nasdaq-100 · S&P 100) ─────────────────────
+mk = d.get("markets")
+if mk:
+    st.markdown("**지수 비교 — Nasdaq-100 · S&P 100** (같은 2년, 시작 주 = 100)")
+    k = st.columns(len(mk["series"]) + 1)
+    for i, t in enumerate(mk["series"]):
+        k[i].metric(mk["names"][t], f"{mk['change'][t] * 100:+.1f}%", help="2년 전 같은 주 대비 (주간 종가 기준)")
+    k[-1].metric("QQQ/OEF 비율", f"{mk['ratio'][-1] - 100:+.1f}%", help="+면 기술주 중심(Nasdaq-100)이 대형주 전체(S&P 100)보다 강했다는 뜻")
+    st.plotly_chart(market_compare(mk, h["dates"], h["score"], d["thresholds"]["expansion"], d["thresholds"]["riskoff"]),
+                    width="stretch", config={"displayModeBar": False})
+    st.caption("QQQ/OEF 비율 (시작 = 100) — 오르면 기술주 쪽이 더 강함")
+    st.plotly_chart(ratio_chart(mk), width="stretch", config={"displayModeBar": False})
+    st.caption("배경 = 국면 점수 추이의 확장(파랑)·위험회피(빨강) 주. 국면 점수에는 쓰지 않는 참고 비교이며, "
+               "QQQ/OEF 비율은 시장 폭(RSP/SPY)처럼 상승이 기술주에 쏠렸는지 보는 보조선입니다. "
+               "ETF 시세(Yahoo) 기반 — 비공개 운영 단계 전용.")
+else:
+    st.caption("지수 비교(Nasdaq-100·S&P 100)는 다음 매일 배치 뒤 표시됩니다.")
 
 st.info("자산군 가이드(같은 국면이었던 과거의 주식·채권·원자재·달러 성과)는 v1에서 추가됩니다.", icon="🛠️")
 src = "합성 데이터(오프라인)" if d["source"].startswith("synthetic") else "FRED · Yahoo(개인 분석용)"

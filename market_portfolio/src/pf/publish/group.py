@@ -30,27 +30,57 @@ def _r(v, nd: int = 5):
     return None if v is None or not np.isfinite(v) else round(float(v), nd)
 
 
+def _month_mdd(px: pd.DataFrame, members: list[str]) -> pd.Series:
+    """월중 최대 낙폭 (월초 동일 비중으로 산 그룹 포트폴리오, 전달 말 = 1.0에서 시작).
+
+    월말 대비 월말 수익률은 월중에 크게 빠졌다 반등한 달을 가린다 — 그 낙폭을 따로 보여준다.
+    """
+    ends = px.resample("ME").last().index
+    days = px.index
+    out = {}
+    for prev, cur in zip(ends[:-1], ends[1:]):
+        d0 = days[days <= prev]
+        if not len(d0):
+            continue
+        base = px.loc[d0[-1], members]
+        win = px.loc[(days > d0[-1]) & (days <= cur), members]
+        if win.empty:
+            continue
+        path = (win / base).mean(axis=1, skipna=True).dropna()
+        if path.empty:
+            continue
+        vals = np.r_[1.0, path.to_numpy()]
+        out[cur] = float((vals / np.maximum.accumulate(vals) - 1).min())
+    return pd.Series(out)
+
+
+def _grid(series: pd.Series, years: list[int]) -> list[list]:
+    rows = []
+    for y in years:
+        row = [None] * 12
+        for ts, v in series[series.index.year == y].items():
+            row[ts.month - 1] = _r(v)
+        rows.append(row)
+    return rows
+
+
 def monthly_heatmap(px: pd.DataFrame, members: list[str], bench: str) -> dict:
-    """동일가중·월초 리밸런싱 그룹 수익률. 상장 전 종목은 그 달 평균에서 빠진다."""
+    """동일가중·월초 리밸런싱 그룹 수익률 + 같은 달 벤치마크 수익률 + 월중 최대 낙폭. 상장 전 종목은 평균에서 빠진다."""
     month_end = px.resample("ME").last()
     mret = month_end.pct_change().iloc[1:]
     grp = mret[members].mean(axis=1, skipna=True)
     bm = mret[bench]
     years = sorted(set(grp.index.year))
-    table, annual, b_annual = [], [], []
+    annual, b_annual = [], []
     for y in years:
-        g_y = grp[grp.index.year == y]
-        row = [None] * 12
-        for ts, v in g_y.items():
-            row[ts.month - 1] = _r(v)
-        table.append(row)
-        annual.append(_r(float(np.prod(1 + g_y.dropna()) - 1)))
-        b_y = bm[bm.index.year == y].dropna()
-        b_annual.append(_r(float(np.prod(1 + b_y) - 1)))
+        annual.append(_r(float(np.prod(1 + grp[grp.index.year == y].dropna()) - 1)))
+        b_annual.append(_r(float(np.prod(1 + bm[bm.index.year == y].dropna()) - 1)))
     return {
         "years": years,
         "months": list(range(1, 13)),
-        "values": table,
+        "values": _grid(grp, years),
+        "bench_values": _grid(bm, years),
+        "mdd": _grid(_month_mdd(px, members), years),
         "annual": annual,
         "bench_annual": b_annual,
         "partial_last_year": bool(px.index[-1].month < 12),
