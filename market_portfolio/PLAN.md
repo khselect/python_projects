@@ -345,11 +345,13 @@ AR_i = β_i · F_g + ε_i,   F_g ~ 그룹 공통 충격,  ε_i ~ t_ν(0, σ_i)
 |---|---|---|
 | 코드 작성·테스트 | Claude Code (클라우드 세션) | `market_portfolio/` 작성, `pytest`, Streamlit 스모크 실행, 브랜치 push |
 | 화면 반복 수정 | 노트북 또는 맥미니 로컬 | `PYTHONPATH=src streamlit run app/main.py` (합성 데이터) |
-| 배포 | 맥미니 | `git pull && docker compose up -d --build` |
+| 배포 | 맥미니 (자동) | push → sielain.com `auto-deploy.sh`(launchd 5분)가 `market_portfolio/` 변경 시 `market-app` 재빌드 |
 | 확인 | 맥북·휴대폰 어디서든 | https://market.sielain.com (Access 로그인) |
 
-- 맥미니에는 모듈이 완성될 때마다만 반영한다. 화면 수정 반복은 로컬에서.
-- 맥미니 로컬 확인은 `http://127.0.0.1:8502` (air가 8501 사용, 외부 바인딩 안 함).
+- 운영 컨테이너는 `/Users/sielain/docker`(sielain.com 저장소) compose의 `market-app` 서비스. `/docker/market-app` → 이 폴더 symlink (parts와 같은 방식).
+- 맥미니 로컬 확인은 `http://127.0.0.1:8502`. 이 폴더의 compose는 로컬 개발 전용(`market_dev`, 8503).
+- 운영 기록(배포·장애)은 sielain.com 저장소 `log.md`, `docs/market-subdomain-deploy.md`에 남긴다.
+- git pull은 코드 갱신만, 서빙 기기 전환은 `use-macbook.sh`/`use-macmini.sh`로만 (sielain.com 2026-11-26 변경).
 
 ### 9.1 비로그인 개인 설정 (F21)
 

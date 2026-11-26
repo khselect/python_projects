@@ -28,9 +28,10 @@ PYTHONPATH=src streamlit run app/main.py      # PF_OFFLINE=1(기본) → 합성 
 - `PF_OFFLINE=1`에서 네트워크 없이 모든 화면이 떠야 한다.
 
 ## 배포 (맥미니)
-- `git pull && docker compose up -d --build` → 컨테이너 `market_frontend`, 네트워크 `docker_sielain_net`.
-- 터널은 원격 관리형(토큰): 라우트는 Cloudflare 대시보드 Published application routes에서만.
-- 호스트 포트 127.0.0.1:8502 (air가 8501 사용). Ollama는 macOS 직접 설치, `host.docker.internal:11434`.
+- 운영은 sielain.com 저장소(`/Users/sielain/docker`) compose의 `market-app` 서비스(`market_frontend`, 127.0.0.1:8502). `/docker/market-app` → 이 폴더 symlink.
+- push만 하면 맥미니 auto-deploy(5분)가 `market_portfolio/` 변경 시 재빌드. 운영 기록은 sielain.com `log.md`·`docs/market-subdomain-deploy.md`.
+- 이 폴더의 docker-compose.yml은 로컬 개발 전용(`market_dev`, 8503).
+- 터널은 원격 관리형(토큰): 라우트는 Cloudflare 대시보드 Published application routes에서만. Ollama는 macOS 직접 설치, `host.docker.internal:11434`.
 
 ## MVP 순서 (PLAN.md §13)
 골격 → ④ 종목 반응 분포(AVGO, 12/09 실적 전) → ① 매크로 국면 → ②③ 그룹.
