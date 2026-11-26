@@ -5,6 +5,11 @@ simulation:
   seed: 20261125
   horizons: [1, 5, 21, 63]
 
+mixture:                   # §7.0 태그 없는 기본 모델
+  nu: 4                    # t 분포 자유도 (고정)
+  kappa: 5                 # 그룹 사전분포 가상 표본 수
+  min_group_events: 15     # 그룹 사전분포 적합 최소 표본
+
 calibration_gate:          # 미통과 시 회색 "참고용"
   brier_max: 0.25
   coverage90_min: 0.85

@@ -33,5 +33,14 @@ PYTHONPATH=src streamlit run app/main.py      # PF_OFFLINE=1(기본) → 합성 
 - 이 폴더의 docker-compose.yml은 로컬 개발 전용(`market_dev`, 8503).
 - 터널은 원격 관리형(토큰): 라우트는 Cloudflare 대시보드 Published application routes에서만. Ollama는 macOS 직접 설치, `host.docker.internal:11434`.
 
+## 배치 명령
+```
+python -m pf.jobs.run publish --group semis [--cache]   # 그룹 실적 반응 계산 → data/publish/ticker/*.json
+python -m pf.jobs.run show AVGO                          # 게시 결과 요약 (Claude에는 이것만 보여준다)
+python -m pf.jobs.run record AVGO                        # 실적 전 예측 기록 → data/predictions/
+```
+- 운영: `docker compose exec market-app python -m pf.jobs.run ...` (`/Users/sielain/docker`에서)
+- 모델: `pf.events.reactions`(반응일·β 조정 초과수익) → `pf.sim.mixture`(3성분 t 혼합 MAP-EM, 그룹 축소) → `pf.sim.reaction_mc`(40만 회)
+
 ## MVP 순서 (PLAN.md §13)
 골격 → ④ 종목 반응 분포(AVGO, 12/09 실적 전) → ① 매크로 국면 → ②③ 그룹.
