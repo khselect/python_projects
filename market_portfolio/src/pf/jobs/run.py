@@ -164,6 +164,8 @@ def ai_line(ai: dict) -> str:
     head = f"AI 해설: {ai['backend']}·{ai['model']} · {ai['n']}건 (생성 {ai['ai']}, 재사용 {ai['reused']}, 템플릿 {ai['template']}) · {ai['seconds']}s"
     if not ai["ready"]:
         return f"⚠️ {head} · {ai['why']}"
+    if ai.get("digest_errors"):
+        head += " · ⚠️ 근거 생성 실패 " + ", ".join(f"{k}({v})" for k, v in ai["digest_errors"].items())
     if ai["reasons"]:
         head += " · 템플릿 사유 " + ", ".join(f"{k} {v}" for k, v in ai["reasons"].items())
     return head

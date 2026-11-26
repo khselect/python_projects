@@ -158,3 +158,30 @@ def test_pregenerate_without_ollama_fills_templates(tmp_data_ai):
     assert not s["ready"] and s["template"] == s["n"] and "연결 실패" in s["why"]
     d = json.loads((AP.AI_DIR / "macro_macro.json").read_text(encoding="utf-8"))
     assert d["mode"] == "template" and d["text"]
+
+
+def test_digest_handles_missing_valuation_values():
+    """실데이터: 합산 FCF·순이익이 0 이하면 P/FCF·P/E가 None (맥미니 첫 실행에서 발견, 11-26)."""
+    from pf.ai.digest import _valuation_facts
+
+    val = {"coverage": {"have": ["A"], "missing": []}, "forward_pe": {"values": [None]},
+           "ttm": {"pe": [20.0, 25.5], "pfcf": [30.0, None], "gap": [10.0, None], "conv": [0.6, None], "n": [1, 1]}}
+    f = _valuation_facts(val)
+    assert f == ["후행 P/E 25.5배, P/FCF 산출 불가(합산 FCF 0 이하) (재무 확보 1종목 합산)"]
+    val["ttm"]["pe"][-1] = None
+    assert "P/E 산출 불가" in _valuation_facts(val)[0]
+
+
+def test_one_bad_context_does_not_stop_others(tmp_data_ai, monkeypatch):
+    import pf.ai.pregen as AP
+
+    real = AP.group_digest
+
+    def boom(grp, *a):
+        if grp["group"]["id"] == "semis":
+            raise TypeError("bad value")
+        return real(grp, *a)
+
+    monkeypatch.setattr(AP, "group_digest", boom)
+    s = AP.pregenerate(FakeLLM())
+    assert "semis" in s["digest_errors"] and s["n"] >= 11

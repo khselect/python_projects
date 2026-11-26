@@ -47,16 +47,28 @@ def _load_json(p):
     return json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
 
 
-def contexts(max_tickers: int = 5, ticker_days: int = 14) -> list[Digest]:
-    """오늘 만들 해설 대상: 매크로 1 + 그룹(산업 10 + 테마) + 실적이 가까운 종목 몇 개."""
+def contexts(max_tickers: int = 5, ticker_days: int = 14, errors: dict | None = None) -> list[Digest]:
+    """오늘 만들 해설 대상: 매크로 1 + 그룹(산업 10 + 테마) + 실적이 가까운 종목 몇 개.
+
+    한 화면의 근거를 만들다 실패해도(실데이터의 빈 값 등) 그 화면만 건너뛴다 → errors에 기록.
+    """
+    errors = {} if errors is None else errors
+
+    def safe(key, fn, *a):
+        try:
+            return fn(*a)
+        except Exception as e:
+            errors[key] = f"{type(e).__name__}: {e}"
+            return None
+
     macro = _load_json(mpub.MACRO_PATH)  # 모듈 속성으로 읽는다 (테스트에서 경로 교체)
     out: list[Digest] = []
     if macro:
-        out.append(macro_digest(macro))
+        out.append(safe("macro", macro_digest, macro))
     for g in load_coverage().groups:
         grp = load_group(g.id)
         if grp:
-            out.append(group_digest(grp, load_valuation(g.id), macro))
+            out.append(safe(g.id, group_digest, grp, load_valuation(g.id), macro))
     near = []
     for p in sorted(tpub.PUBLISH_DIR.glob("*.json")):
         t = json.loads(p.read_text(encoding="utf-8"))
@@ -66,8 +78,8 @@ def contexts(max_tickers: int = 5, ticker_days: int = 14) -> list[Digest]:
             if 0 <= days <= ticker_days:
                 near.append((days, t))
     for _, t in sorted(near, key=lambda x: (x[0], x[1]["ticker"]))[:max_tickers]:
-        out.append(ticker_digest(t, load_group(t["group"]["id"]), macro))
-    return out
+        out.append(safe(t["ticker"], ticker_digest, t, load_group(t["group"]["id"]), macro))
+    return [d for d in out if d is not None]
 
 
 def template_text(d: Digest) -> str:
@@ -113,7 +125,8 @@ def pregenerate(client="auto", cfg: dict | None = None) -> dict:
     counts = {"ai": 0, "reused": 0, "template": 0}
     reasons: dict[str, int] = {}
     keep = set()
-    ds = contexts(cfg["max_tickers"], cfg["ticker_days"])
+    digest_errors: dict[str, str] = {}
+    ds = contexts(cfg["max_tickers"], cfg["ticker_days"], digest_errors)
     for d in ds:
         p = path_for(d.kind, d.key)
         keep.add(p.name)
@@ -145,6 +158,7 @@ def pregenerate(client="auto", cfg: dict | None = None) -> dict:
     return {
         "backend": getattr(client, "name", "off"), "model": getattr(client, "model", None),
         "ready": ready, "why": None if ready else why, "n": len(ds), **counts, "reasons": reasons,
+        "digest_errors": digest_errors,
         "seconds": round(time.perf_counter() - t0, 1),
     }
 

@@ -73,6 +73,7 @@ def _indicator_fact(ind: dict) -> str:
     detail = ""
     if ind.get("public_values", True):
         k = ind["key"]
+        v = {kk: vv for kk, vv in v.items() if vv is not None}
         if k == "liquidity" and "gap" in v:
             detail = f", GDP 전년비 − 기준금리 {v['gap']:+.2f}%p"
         elif k in ("commodity", "breadth", "dollar") and "vs_ma" in v:
@@ -117,11 +118,17 @@ def _valuation_facts(val: dict | None) -> list[str]:
     ttm = val.get("ttm") or {}
     out = []
     if ttm.get("pe"):
-        n = ttm["n"][-1] if ttm.get("n") else len(cov.get("have", []))
-        out.append(f"후행 P/E {ttm['pe'][-1]:.1f}배, P/FCF {ttm['pfcf'][-1]:.1f}배, 괴리(P/FCF − P/E) "
-                   f"{ttm['gap'][-1]:+.1f}, FCF 전환율 {ttm['conv'][-1]:.2f} (재무 확보 {n}종목 합산)")
+        last = {k: (ttm.get(k) or [None])[-1] for k in ("pe", "pfcf", "gap", "conv", "n")}
+        n = last["n"] if last["n"] is not None else len(cov.get("have", []))
+        parts = [f"후행 P/E {last['pe']:.1f}배" if last["pe"] is not None else "후행 P/E 산출 불가(합산 순이익 0 이하)",
+                 f"P/FCF {last['pfcf']:.1f}배" if last["pfcf"] is not None else "P/FCF 산출 불가(합산 FCF 0 이하)"]
+        if last["gap"] is not None:
+            parts.append(f"괴리(P/FCF − P/E) {last['gap']:+.1f}")
+        if last["conv"] is not None:
+            parts.append(f"FCF 전환율 {last['conv']:.2f}")
+        out.append(", ".join(parts) + f" (재무 확보 {n:.0f}종목 합산)")
     fwd = (val.get("forward_pe") or {}).get("values") or []
-    if fwd:
+    if fwd and fwd[-1] is not None:
         out.append(f"선행 P/E {fwd[-1]:.1f}배")
     if cov.get("missing"):
         out.append(f"재무 미확보 종목: {', '.join(cov['missing'])}")
@@ -146,6 +153,9 @@ def group_digest(group: dict, valuation: dict | None = None, macro: dict | None 
         part = " (연중)" if hm.get("partial_last_year") else ""
         facts.append(f"{y}년{part} 그룹 동일가중 수익률 {pct(a)}" + (f", 벤치마크 {pct(b)}" if b is not None else ""))
     for u in (group.get("upcoming") or [])[:3]:
+        if u.get("p_down") is None or u.get("p5") is None:
+            facts.append(f"다가오는 실적: {u['ticker']} {u['date']} {u['timing']} ({u['days']}일 남음)")
+            continue
         facts.append(f"다가오는 실적: {u['ticker']} {u['date']} {u['timing']} ({u['days']}일 남음), "
                      f"다음 날 하락 확률 {prob(u['p_down'])}, 90% 하단 {pct(u['p5'])}")
     facts += _valuation_facts(valuation)
