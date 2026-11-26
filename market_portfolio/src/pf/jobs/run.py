@@ -17,6 +17,7 @@ import time
 
 import json
 from datetime import datetime, timezone
+from pathlib import Path
 
 from pf.publish.ticker import (
     PUBLISH_DIR,
@@ -59,6 +60,25 @@ def show(ticker: str) -> int:
 STATUS = PUBLISH_DIR.parent / "status.json"
 
 
+def code_hash() -> str:
+    """배치 결과에 영향을 주는 코드(src/pf)와 설정(config/*.yaml)의 해시.
+
+    status.json에 남겨 두고, 스케줄러가 시작할 때 다르면 그날 이미 돌았어도 다시 실행한다
+    (새 기능 배포 직후 다음 날 07:15까지 화면이 비던 문제, 2026-11-26).
+    """
+    import hashlib
+
+    from pf.settings import CONFIG_DIR
+
+    root = Path(__file__).resolve().parents[1]
+    h = hashlib.sha256()
+    files = sorted(root.rglob("*.py")) + sorted(Path(CONFIG_DIR).glob("*.yaml"))
+    for f in files:
+        h.update(f.name.encode())
+        h.update(f.read_bytes())
+    return h.hexdigest()[:12]
+
+
 def daily() -> int:
     """매일 배치. 결과는 data/publish/status.json (화면 사이드바·점검용)."""
     started = datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -90,6 +110,7 @@ def daily() -> int:
         **res,
         "macro": macro,
         "warnings": warnings,
+        "code_hash": code_hash(),
         "ok": ok,
         "started_at": started,
         "finished_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),

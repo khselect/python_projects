@@ -42,6 +42,7 @@ python -m pf.jobs.run record AVGO                        # 실적 전 예측 기
 ```
 - 운영: `docker compose exec market-app python -m pf.jobs.run ...` (`/Users/sielain/docker`에서)
 - 매일 07:15 KST `market-jobs` 컨테이너(`pf.jobs.scheduler`)가 `daily` 실행. 결과 `data/publish/status.json`
+- 컨테이너 시작 시 오늘 배치가 없거나 `status.json`의 `code_hash`(src/pf + config 해시)가 현재와 다르면 즉시 1회 실행 → 새 기능 배포 직후에도 화면이 바로 채워짐
 - 그룹·캘린더: `pf.events.reactions.event_paths`(CAR 경로) → `pf.publish.group`(data/publish/group/*.json, calendar.json). 종목 JSON을 읽으므로 publish_all에서 종목 계산 뒤 실행
 - 매크로: `pf.data.fred`(FRED, 키 `FRED_API_KEY`) → `pf.macro.indicators`(6개 신호, 5일 확정) → `pf.macro.publish`(data/publish/macro.json). 신용(ICE) 값은 화면에 내지 않는다
 - 모델: `pf.events.reactions`(반응일·β 조정 초과수익) → `pf.sim.mixture`(3성분 t 혼합 MAP-EM, 그룹 축소) → `pf.sim.reaction_mc`(40만 회)

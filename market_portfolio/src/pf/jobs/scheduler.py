@@ -3,7 +3,8 @@
   PF_DAILY_AT=07:15   실행 시각 (기본 07:15)
   PF_TZ=Asia/Seoul    시간대 (미국 장 마감 = 한국 06:00, 서머타임 05:00)
 
-- 컨테이너 시작 시 오늘 배치 기록이 없으면 바로 한 번 실행한다 (재부팅·재배포 후 빈 화면 방지).
+- 컨테이너 시작 시 오늘 배치 기록이 없거나, 마지막 배치 이후 코드·설정이 바뀌었으면 바로 한 번 실행한다
+  (재부팅·재배포 후 빈 화면 방지).
 - 대기는 최대 5분씩 끊어서 한다 — 맥미니 잠자기·시계 보정 뒤에도 실행 시각을 놓치지 않게.
 """
 
@@ -15,7 +16,7 @@ import time
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from pf.jobs.run import daily, last_status
+from pf.jobs.run import code_hash, daily, last_status
 
 CHUNK = 300
 
@@ -42,6 +43,16 @@ def ran_today(now: datetime, at: str) -> bool:
 TZ = ZoneInfo(os.environ.get("PF_TZ", "Asia/Seoul"))
 
 
+def start_reason(now: datetime, at: str) -> str | None:
+    """시작 시 바로 실행해야 하는 이유. None이면 다음 정시까지 기다린다."""
+    if not ran_today(now, at):
+        return "최근 실행 시각 이후 배치 기록 없음"
+    st = last_status() or {}
+    if st.get("code_hash") != code_hash():
+        return f"코드·설정 변경 (배치 {st.get('code_hash', '없음')} → 현재 {code_hash()})"
+    return None
+
+
 def log(msg: str) -> None:
     """로그 시각도 실행 시간대(KST)로 — 컨테이너 기본 UTC와 섞이지 않게."""
     print(f"{datetime.now(TZ).isoformat(timespec='seconds')} {msg}", flush=True)
@@ -51,8 +62,8 @@ def main() -> int:
     tz = TZ
     at = os.environ.get("PF_DAILY_AT", "07:15")
     log(f"scheduler 시작 — 매일 {at} ({tz.key})")
-    if not ran_today(datetime.now(tz), at):
-        log("최근 실행 시각 이후 배치 기록 없음 → 지금 실행")
+    if reason := start_reason(datetime.now(tz), at):
+        log(f"{reason} → 지금 실행")
         daily()
     while True:
         target = next_run(datetime.now(tz), at)

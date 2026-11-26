@@ -95,3 +95,24 @@ def test_next_run_and_ran_today(tmp_data):
     assert sched.ran_today(now, "07:15")
     # 오늘 08:00 기준 → 오늘 07:15 슬롯 이후 실행 기록 없음
     assert not sched.ran_today(now.replace(hour=8), "07:15")
+
+
+def test_start_reason_reruns_after_code_change(tmp_data):
+    now = datetime(2026, 12, 9, 8, 0, tzinfo=KST)
+    st = run.STATUS
+    st.parent.mkdir(parents=True, exist_ok=True)
+    done = datetime(2026, 12, 9, 7, 20, tzinfo=KST).isoformat()
+    # 오늘 이미 돌았고 코드도 같으면 기다린다
+    pub._write_json(st, {"finished_at": done, "code_hash": run.code_hash()})
+    assert sched.start_reason(now, "07:15") is None
+    # 오늘 돌았어도 코드가 바뀌었으면 바로 실행
+    pub._write_json(st, {"finished_at": done, "code_hash": "old0000"})
+    assert "코드·설정 변경" in sched.start_reason(now, "07:15")
+    # 예전 status.json (code_hash 없음)도 다시 실행
+    pub._write_json(st, {"finished_at": done})
+    assert sched.start_reason(now, "07:15") is not None
+
+
+def test_daily_records_code_hash(tmp_data):
+    run.daily()
+    assert run.last_status()["code_hash"] == run.code_hash()
