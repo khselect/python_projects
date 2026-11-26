@@ -1,0 +1,65 @@
+# 커버리지 50종목 (PLAN.md §6.2). 산업 그룹 10개 × 대표 5종목 + 테마 그룹.
+# 교체 규칙: 연 1회(12월), 그룹당 연 1종목 이내. 뺀 종목은 지우지 말고 until: 로 표시.
+version: 1
+
+industry_groups:
+  - id: semis
+    name: 반도체
+    benchmark: SOXX
+    members: [NVDA, AVGO, AMD, MU, QCOM]
+  - id: software
+    name: 소프트웨어
+    benchmark: IGV
+    members: [MSFT, ORCL, CRM, ADBE, NOW]
+  - id: internet
+    name: 인터넷·플랫폼
+    benchmark: XLC
+    members: [GOOGL, META, NFLX, UBER, BKNG]
+  - id: hardware
+    name: 하드웨어·통신장비
+    benchmark: XLK
+    members: [AAPL, CSCO, ANET, IBM, DELL]
+  - id: financials
+    name: 금융·결제
+    benchmark: XLF
+    members: [JPM, BAC, GS, V, MA]
+  - id: healthcare
+    name: 헬스케어
+    benchmark: XLV
+    members: [LLY, UNH, JNJ, ABBV, ISRG]
+  - id: discretionary
+    name: 임의소비재
+    benchmark: XLY
+    members: [AMZN, TSLA, HD, MCD, NKE]
+  - id: staples
+    name: 필수소비재
+    benchmark: XLP
+    members: [WMT, COST, PG, KO, PEP]
+  - id: industrials
+    name: 산업재
+    benchmark: XLI
+    members: [GE, CAT, RTX, UNP, DE]
+  - id: energy_materials_utilities
+    name: 에너지·소재·유틸리티
+    benchmark: SPY
+    members: [XOM, CVX, LIN, FCX, NEE]
+
+theme_groups:
+  - id: bigtech
+    name: 빅테크
+    benchmark: QQQ
+    members: [AAPL, MSFT, GOOGL, AMZN, META, NFLX, TSLA]
+
+# 50종목에 포함하지 않는 참조 ETF
+reference_etfs:
+  benchmarks: [SOXX, IGV, XLC, XLK, XLF, XLV, XLY, XLP, XLI, SPY, QQQ]
+  macro: [RSP, DBC, TLT, IEF, UUP, BIL]
+  leveraged: [USD, FNGU]
+
+defaults:
+  groups: [semis, bigtech]
+  favorites: [SOXX, USD, FNGU, AVGO, NVDA]
+
+limits:
+  user_group_min: 2
+  user_group_max: 10

@@ -1,0 +1,38 @@
+# market.sielain.com — S0 비공개 운영 (Cloudflare Access 뒤)
+# 맥미니: git pull && docker compose up -d --build
+services:
+  app:
+    build: .
+    container_name: market_frontend      # 터널 라우트 대상: market_frontend:8501
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PF_DATA_DIR: /app/data
+    volumes:
+      - ./data:/app/data                 # Parquet·SQLite·게시 JSON (커밋 안 함)
+      - ./config:/app/config:ro          # coverage.yaml 등 — 재빌드 없이 수정 반영
+    ports:
+      - "127.0.0.1:${MARKET_PORT:-8502}:8501"   # 맥미니 로컬 확인 전용 (외부 노출 안 함)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"     # v1: macOS에 직접 설치한 Ollama 호출
+    mem_limit: 1g                        # air 대시보드·Ollama와 16GB를 나눠 씀
+    networks:
+      - market_net
+      - sielain_net
+
+  # 실데이터 단계에서 추가 (07:15 배치). 지금은 비활성.
+  # jobs:
+  #   build: .
+  #   container_name: market_jobs
+  #   command: ["python", "-m", "pf.jobs.scheduler"]
+  #   env_file: .env
+  #   volumes: ["./data:/app/data", "./config:/app/config:ro"]
+  #   mem_limit: 2g
+  #   networks: [market_net]
+
+networks:
+  market_net:
+    driver: bridge
+  sielain_net:
+    external: true
+    name: docker_sielain_net   # /Users/sielain/docker 스택(sielain_tunnel)이 만든 공유 네트워크

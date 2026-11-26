@@ -1,0 +1,18 @@
+# 모델 기본값과 보정 관문 (PLAN.md §4, §7)
+simulation:
+  n_iter: 400000
+  n_iter_preview: 50000
+  seed: 20261125
+  horizons: [1, 5, 21, 63]
+
+calibration_gate:          # 미통과 시 회색 "참고용"
+  brier_max: 0.25
+  coverage90_min: 0.85
+  coverage90_max: 0.95
+  min_events: 20
+
+macro:
+  compare_base_months: 6     # 3 / 6 / 12 선택
+  regime_expansion_min: 3    # 점수 >= +3
+  regime_riskoff_max: -3     # 점수 <= -3
+  confirm_days: 5            # 신호 5거래일 유지 시 전환 인정
