@@ -108,6 +108,8 @@ def tmp_data_ai(tmp_path_factory):
     tmp = tmp_path_factory.mktemp("ai")
     import pf.ai.pregen as AP
     import pf.data.fundamentals as F
+    import pf.macro.evaluate as ME
+    import pf.publish.overview as OV
     import pf.data.store as store
     import pf.jobs.run as run
     import pf.macro.publish as mpub
@@ -124,6 +126,7 @@ def tmp_data_ai(tmp_path_factory):
         (mpub, "MACRO_PATH", tmp / "publish" / "macro.json"), (gpub, "GROUP_DIR", tmp / "publish" / "group"),
         (gpub, "CALENDAR_PATH", tmp / "publish" / "calendar.json"), (F, "DATA_DIR", tmp), (V, "DATA_DIR", tmp),
         (PV, "VAL_DIR", tmp / "publish" / "valuation"), (AP, "AI_DIR", tmp / "publish" / "ai"),
+        (OV, "OVERVIEW_PATH", tmp / "publish" / "overview.json"), (ME, "EVAL_PATH", tmp / "publish" / "macro_eval.json"),
     ]:
         mp.setattr(mod, attr, val)
     cfg = load_model()

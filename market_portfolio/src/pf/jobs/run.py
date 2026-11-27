@@ -2,6 +2,8 @@
 
   python -m pf.jobs.run daily                                매일 배치: 산업 그룹 10개 + 매크로 국면 + 실적 1~5일 전 예측 기록
   python -m pf.jobs.run macro                                매크로 국면만 계산 (FRED_API_KEY 필요, 오프라인은 합성)
+  python -m pf.jobs.run overview                             ⓪ 시장 개요만 계산 (지수·원자재·국채·섹터)
+  python -m pf.jobs.run macro-eval                           국면 점수 검증: 스트레스 구간 지연·오경보 (6개 vs 10개 지표)
   python -m pf.jobs.run publish [--group semis] [--cache]   그룹 실적 반응 계산·게시
   python -m pf.jobs.run record AVGO                          실적 전 예측 기록 보관
   python -m pf.jobs.run show AVGO                            게시 JSON 요약 출력 (digest)
@@ -94,6 +96,13 @@ def daily() -> int:
         macro = {"ok": True}
     except Exception as e:  # FRED 키 누락·수집 실패가 종목 계산 결과를 막지 않게
         macro = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+    try:  # ⓪ 시장 개요 (지수·원자재·국채·섹터) — 실패해도 나머지 결과는 유지
+        from pf.publish.overview import publish_overview
+
+        publish_overview()
+        overview = {"ok": True}
+    except Exception as e:
+        overview = {"ok": False, "error": f"{type(e).__name__}: {e}"}
     try:  # 밸류에이션 (재무제표 대기열 + 선행 P/E 누적) — 실패해도 나머지 결과는 유지
         from pf.publish.valuation import publish_valuation
 
@@ -123,6 +132,7 @@ def daily() -> int:
         **res,
         "macro": macro,
         "valuation": val,
+        "overview": overview,
         "ai": ai,
         "warnings": warnings,
         "code_hash": code_hash(),
@@ -152,6 +162,8 @@ def daily() -> int:
               + (f" · ⚠️ {q['stopped']}" if q.get("stopped") else ""))
     else:
         print(f"  ⚠️ 밸류에이션: {val['error']} (다른 결과에는 영향 없음)")
+    if not overview["ok"]:
+        print(f"  ⚠️ 시장 개요: {overview['error']} (다른 결과에는 영향 없음)")
     print("  " + ai_line(ai))
     if not macro["ok"]:
         print(f"  ❌ 매크로: {macro['error']}")
@@ -197,6 +209,9 @@ def main(argv=None) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("daily")
     sub.add_parser("macro")
+    sub.add_parser("overview")
+    me = sub.add_parser("macro-eval")
+    me.add_argument("--start", default="2007-01-01")
     p = sub.add_parser("publish")
     p.add_argument("--group", default="semis")
     p.add_argument("--cache", action="store_true", help="저장된 원천 데이터 재사용 (네트워크 호출 없음)")
@@ -222,6 +237,16 @@ def main(argv=None) -> int:
         from pf.macro.publish import publish_macro
 
         print(publish_macro())
+        return 0
+    if a.cmd == "overview":
+        from pf.publish.overview import publish_overview
+
+        print(publish_overview())
+        return 0
+    if a.cmd == "macro-eval":
+        from pf.macro.evaluate import publish_eval, report
+
+        print(report(publish_eval(start=a.start)))
         return 0
     if a.cmd == "publish":
         t0 = time.perf_counter()

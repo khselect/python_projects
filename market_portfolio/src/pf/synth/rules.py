@@ -7,7 +7,7 @@ LLM 미사용, 지시형("사라·팔라·늘려라·줄여라·헤지하라")·
 
 | 층 | 입력 | +1 | 0 | −1 |
 |---|---|---|---|---|
-| 1 매크로 | 국면 점수 | ≥ +3 | 그 사이 | ≤ −3 |
+| 1 매크로 | 국면 점수 (−10~+10) | ≥ +4 | 그 사이 | ≤ −4 또는 급변 |
 | 2 그룹 | 과거 실적 후 21일 초과수익 중앙값 | ≥ +0.5% | ±0.5% 이내 | ≤ −0.5% |
 | 3 종목 | 다음 날 P(하락)·P(상승)·90% 하단 | P(상승) ≥ 60% 이고 하단 > −15% | 그 외 | P(하락) ≥ 60% 또는 하단 ≤ −15% |
 
@@ -59,12 +59,19 @@ def _pct(v: float) -> str:
     return "0.0%" if x == 0 else f"{x:+.1f}%"
 
 
-def macro_layer(macro: dict | None, hi: int = 3, lo: int = -3) -> Layer:
+def macro_layer(macro: dict | None) -> Layer:
+    """국면 경계는 게시 JSON의 thresholds (v0.21: ±4/10). 급변이면 점수와 관계없이 비우호."""
     if not macro:
         return Layer("macro", "매크로", None, "매크로 계산 결과 없음")
     s = macro["score"]
-    v = 1 if s >= hi else (-1 if s <= lo else 0)
-    return Layer("macro", "매크로", v, f"국면 점수 {fmt_score(s)} · {macro['regime']} ({macro['regime_since']}부터)")
+    th = macro.get("thresholds") or {"expansion": 3, "riskoff": -3}
+    stress = (macro.get("stress") or {}).get("on", False)
+    v = -1 if stress or s <= th["riskoff"] else (1 if s >= th["expansion"] else 0)
+    rng = macro.get("score_range", 6)
+    basis = f"국면 점수 {fmt_score(s)}/{rng} · {macro['regime']} ({macro['regime_since']}부터)"
+    if stress:
+        basis += " · 급변 규칙 발동"
+    return Layer("macro", "매크로", v, basis)
 
 
 def group_layer(group: dict | None) -> Layer:

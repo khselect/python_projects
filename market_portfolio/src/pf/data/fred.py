@@ -25,7 +25,9 @@ SERIES = {
     "BAMLH0A0HYM2": "하이일드 스프레드 (ICE BofA, 내부 계산 전용)",
     "T10Y2Y": "장단기 금리차 10Y−2Y",
     "DTWEXBGS": "광의 달러지수 (연준)",
+    "DGS2": "미 국채 2년 수익률",  # 시장 층: 단기금리 변동
 }
+YIELDS = {"DGS1": "1년", "DGS2": "2년", "DGS5": "5년", "DGS10": "10년", "DGS30": "30년"}  # ⓪ 국채 곡선
 INTERNAL_ONLY = {"BAMLH0A0HYM2"}
 
 NOTICE = (
@@ -98,6 +100,12 @@ class SyntheticFred:
         out["T10Y2Y"] = pd.Series(1.2 * np.cos(t / (n / 5)) + rng.normal(0, 0.05, n), index=days)
         # 달러지수
         out["DTWEXBGS"] = pd.Series(110 * np.exp(np.cumsum(rng.normal(0.00005, 0.003, n))), index=days)
+        # 국채 수익률: 기준금리를 따라가는 2년물 + 만기 프리미엄(금리차 시리즈와 같은 순환)
+        y2 = pd.Series(rate, index=days).rolling(60, min_periods=1).mean() + rng.normal(0, 0.03, n).cumsum() * 0.05
+        y2 = y2.clip(lower=0.1)
+        slope = out["T10Y2Y"].rolling(5, min_periods=1).mean()
+        for sid, frac in (("DGS1", -0.15), ("DGS2", 0.0), ("DGS5", 0.45), ("DGS10", 1.0), ("DGS30", 1.25)):
+            out[sid] = (y2 + frac * slope).clip(lower=0.05).round(2)
         return {i: out[i] for i in ids}
 
 

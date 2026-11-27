@@ -1,8 +1,13 @@
-"""매크로 국면 판정 (PLAN.md §7.5, F16).
+"""매크로 국면 판정 (PLAN.md §7.5, F16) — 두 속도 국면 점수 (v0.21, 11-27).
 
-6개 지표를 매 거래일 위험자산 우호(+1)·중립(0)·비우호(−1)로 판정하고 더해 국면 점수(−6~+6)를 만든다.
-수준보다 방향 전환을 본다. 원 신호가 5거래일 연속 유지돼야 전환으로 인정한다(깜빡임 방지).
-중립 구간은 config/model.yaml macro.neutral (v0.14 결정 B: 점수가 짝수만 나오던 문제 해소).
+10개 지표를 매 거래일 위험자산 우호(+1)·중립(0)·비우호(−1)로 판정하고 더해 국면 점수(−10~+10)를 만든다.
+  매크로 층(느림, 6개): 원 신호가 5거래일 연속 유지돼야 전환 (깜빡임 방지)
+  시장 층(빠름, 4개):  VIX · 추세·낙폭 · 섹터 폭 · 단기금리 변동, 2거래일 확정
+중립 구간은 config/model.yaml macro.neutral / macro.market.
+급변 규칙: VIX ≥ 30 또는 나스닥100 고점 대비 −20% 이하면 점수와 관계없이 "위험회피(급변)" (확정 기간 없음).
+
+v0.20까지는 매크로 층 6개만 있어 주가·변동성을 직접 보는 지표가 없었다 → 나스닥 급락·VIX 급등에도
+점수 0이 나올 수 있었다(11-26 운영에서 확인). 시장 층을 더하고 경계를 ±3/6 → ±4/10으로 옮겼다.
 
 | 지표     | +1 (우호)                                    | 0 (중립)                         | −1 (비우호)                                   |
 |----------|----------------------------------------------|----------------------------------|-----------------------------------------------|
@@ -34,9 +39,10 @@ class Indicator:
     key: str
     name: str
     public: bool = True  # False면 값은 화면에 내지 않고 신호만 (라이선스)
+    layer: str = "macro"  # macro(느림, 5일 확정) | market(빠름, 2일 확정)
 
 
-INDICATORS = (
+MACRO_INDICATORS = (
     Indicator("liquidity", "유동성"),
     Indicator("commodity", "원자재"),
     Indicator("breadth", "시장 폭"),
@@ -44,9 +50,24 @@ INDICATORS = (
     Indicator("curve", "금리곡선"),
     Indicator("dollar", "달러"),
 )
+MARKET_INDICATORS = (
+    Indicator("vix", "VIX", layer="market"),
+    Indicator("trend", "추세·낙폭", layer="market"),
+    Indicator("sectors", "섹터 폭", layer="market"),
+    Indicator("rates", "단기금리 변동", layer="market"),
+)
+INDICATORS = MACRO_INDICATORS + MARKET_INDICATORS
+LAYER_NAME = {"macro": "매크로 층", "market": "시장 층"}
+
+VIX, SPX, NDX = "^VIX", "^GSPC", "^NDX"
+SECTORS = ("XLK", "XLC", "XLY", "XLF", "XLV", "XLI", "XLE", "XLB", "XLP", "XLU", "XLRE")
+MARKET_TICKERS = (VIX, SPX, NDX) + SECTORS
+STRESS_LABEL = "위험회피(급변)"
 
 
-def regime_of(score: float, hi: int = 3, lo: int = -3) -> str:
+def regime_of(score: float, hi: int = 4, lo: int = -4, stress: bool = False) -> str:
+    if stress:
+        return STRESS_LABEL
     if score >= hi:
         return "확장"
     if score <= lo:
@@ -77,6 +98,19 @@ def confirm(raw: pd.Series, days: int = CONFIRM_DAYS) -> pd.Series:
 
 
 DEFAULT_NEUTRAL = {"ma_band": 0.01, "liquidity_gap": 0.5, "credit_d3m": 0.10, "curve_flat": 0.25}
+DEFAULT_MARKET = {
+    "confirm_days": 2,
+    "vix": [17, 25],                       # 미만 우호 / 이상 비우호
+    "trend_ok_dd": -0.05,                  # 두 지수 모두 200일선 위이고 고점 대비 이 이내 → 우호
+    "trend_bad_dd": -0.10,                 # 어느 한 지수라도 200일선 아래 또는 이 이하 → 비우호
+    "sectors": [0.40, 0.60],               # 200일선 위 섹터 비율: 미만 비우호 / 이상 우호
+    "sectors_min": 8,                      # 계산에 필요한 최소 섹터 수 (XLC 2018~, XLRE 2015~)
+    "rates_calm": 0.10,                    # 2년물 21거래일 변화 |Δ| ≤ 0.10%p → 우호(안정)
+    "rates_up": 0.25,                      # Δ ≥ +0.25%p → 비우호(긴축 쇼크)
+    "rates_down": -0.50,                   # Δ ≤ −0.50%p → 비우호(위기성 급락, 안전자산 쏠림)
+    "stress_vix": 30,
+    "stress_ndx_dd": -0.20,
+}
 
 
 def _sign(cond: pd.Series, valid: pd.Series) -> pd.Series:
@@ -104,9 +138,68 @@ def days_since_inversion(curve: pd.Series) -> pd.Series:
     return d.fillna(10_000).where(curve.notna())
 
 
-def compute(prices: pd.DataFrame, fred: dict[str, pd.Series], neutral: dict | None = None) -> pd.DataFrame:
-    """prices: DBC·RSP·SPY 수정 종가(거래일 index). fred: SERIES 키별 시계열. neutral: 중립 구간."""
+def _market_layer(df: pd.DataFrame, prices: pd.DataFrame, fred: dict[str, pd.Series], mk: dict) -> None:
+    """시장 층 4개 (빠름). 입력이 없으면 그 지표는 신호 없음(NaN)."""
+    idx = df.index
+    col = lambda t: prices[t] if t in prices else pd.Series(np.nan, index=idx)  # noqa: E731
+
+    # VIX
+    vix = col(VIX)
+    lo, hi = mk["vix"]
+    df["val_vix_level"] = vix
+    df["val_vix_max_1m"] = vix.rolling(21, min_periods=1).max()
+    df["raw_vix"] = _tri(vix < lo, vix >= hi, vix.notna())
+
+    # 추세·낙폭: S&P 500, 나스닥100
+    above, dd = {}, {}
+    for t, k in ((SPX, "spx"), (NDX, "ndx")):
+        px = col(t)
+        ma = px.rolling(MA).mean()
+        df[f"val_trend_{k}_vs_ma"] = px / ma - 1
+        dd[k] = px / px.rolling(D1Y, min_periods=MA).max() - 1
+        df[f"val_trend_{k}_dd"] = dd[k]
+        above[k] = px > ma
+    ok = df["val_trend_spx_vs_ma"].notna() & df["val_trend_ndx_vs_ma"].notna() & dd["spx"].notna() & dd["ndx"].notna()
+    pos = above["spx"] & above["ndx"] & (dd["spx"] > mk["trend_ok_dd"]) & (dd["ndx"] > mk["trend_ok_dd"])
+    neg = ~above["spx"] | ~above["ndx"] | (dd["spx"] <= mk["trend_bad_dd"]) | (dd["ndx"] <= mk["trend_bad_dd"])
+    df["raw_trend"] = _tri(pos, neg, ok)
+
+    # 섹터 폭: 200일선 위 섹터 비율
+    secs = [t for t in SECTORS if t in prices]
+    if secs:
+        px = prices[secs]
+        ma = px.rolling(MA).mean()
+        valid = ma.notna()
+        n = valid.sum(axis=1)
+        share = ((px > ma) & valid).sum(axis=1) / n.where(n > 0)
+    else:
+        n, share = pd.Series(0, index=idx), pd.Series(np.nan, index=idx)
+    df["val_sectors_share"], df["val_sectors_n"] = share, n.astype(float)
+    s_lo, s_hi = mk["sectors"]
+    df["raw_sectors"] = _tri(share >= s_hi, share < s_lo, share.notna() & (n >= mk["sectors_min"]))
+
+    # 단기금리 변동: 2년물 21거래일 변화
+    if "DGS2" in fred:
+        y2 = fred["DGS2"].reindex(idx.union(fred["DGS2"].index)).ffill().reindex(idx)
+    else:
+        y2 = pd.Series(np.nan, index=idx)
+    d21 = y2 - y2.shift(21)
+    df["val_rates_y2"], df["val_rates_d1m"] = y2, d21
+    df["raw_rates"] = _tri(d21.abs() <= mk["rates_calm"], (d21 >= mk["rates_up"]) | (d21 <= mk["rates_down"]), d21.notna())
+
+    # 급변 (확정 기간 없음)
+    stress_vix = vix >= mk["stress_vix"]
+    stress_dd = dd["ndx"] <= mk["stress_ndx_dd"]
+    df["stress_vix"], df["stress_dd"] = stress_vix.astype(float), stress_dd.astype(float)
+    df["stress"] = (stress_vix | stress_dd).astype(float)
+
+
+def compute(prices: pd.DataFrame, fred: dict[str, pd.Series], neutral: dict | None = None,
+            market: dict | None = None) -> pd.DataFrame:
+    """prices: DBC·RSP·SPY(+ 시장 층: ^VIX·^GSPC·^NDX·섹터 ETF) 수정 종가(거래일 index).
+    fred: SERIES 키별 시계열. neutral: 매크로 층 중립 구간. market: 시장 층 경계."""
     nb = {**DEFAULT_NEUTRAL, **(neutral or {})}
+    mk = {**DEFAULT_MARKET, **(market or {})}
     band = nb["ma_band"]
     idx = prices.index
     on = lambda s: s.reindex(idx.union(s.index)).ffill().reindex(idx)  # noqa: E731
@@ -164,10 +257,15 @@ def compute(prices: pd.DataFrame, fred: dict[str, pd.Series], neutral: dict | No
     df["val_dollar_vs_ma"], df["val_dollar_6m"] = d_ma, u6
     df["raw_dollar"] = _tri(d_ma < -band, (d_ma > band) | (u6 >= 0.03), uma.notna() & u6.notna())
 
+    _market_layer(df, prices, fred, mk)
+
     for ind in INDICATORS:
-        df[f"sig_{ind.key}"] = confirm(df[f"raw_{ind.key}"])
+        days = CONFIRM_DAYS if ind.layer == "macro" else int(mk["confirm_days"])
+        df[f"sig_{ind.key}"] = confirm(df[f"raw_{ind.key}"], days)
     sigs = df[[f"sig_{i.key}" for i in INDICATORS]]
     df["n_signals"] = sigs.notna().sum(axis=1)
+    for layer in ("macro", "market"):
+        df[f"score_{layer}"] = df[[f"sig_{i.key}" for i in INDICATORS if i.layer == layer]].fillna(0).sum(axis=1)
     df["score"] = sigs.fillna(0).sum(axis=1)
     return df
 

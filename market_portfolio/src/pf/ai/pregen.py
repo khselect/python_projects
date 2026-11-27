@@ -15,7 +15,7 @@ import pandas as pd
 
 from pf.ai import guard
 from pf.ai.client import LLMError, get_client
-from pf.ai.digest import Digest, group_digest, macro_digest, ticker_digest
+from pf.ai.digest import Digest, group_digest, macro_digest, overview_digest, ticker_digest
 from pf.config import load_coverage, load_model
 import pf.macro.publish as mpub
 import pf.publish.ticker as tpub
@@ -24,7 +24,7 @@ from pf.publish.ticker import PUBLISH_DIR, _write_json
 from pf.publish.valuation import load_valuation
 
 AI_DIR = PUBLISH_DIR.parent / "ai"
-PROMPT_VERSION = 2  # 프롬프트를 바꾸면 올린다 → 근거가 같아도 다시 생성
+PROMPT_VERSION = 3  # 프롬프트를 바꾸면 올린다 → 근거가 같아도 다시 생성
 
 SYSTEM = """너는 market.sielain.com 대시보드의 해설 도우미다. 사용자가 보고 있는 화면을 [근거]의 사실만으로 한국어로 풀어 설명한다.
 규칙:
@@ -67,6 +67,11 @@ def contexts(max_tickers: int = 5, ticker_days: int = 14, errors: dict | None = 
     out: list[Digest] = []
     if macro:
         out.append(safe("macro", macro_digest, macro))
+    import pf.publish.overview as ovp  # 모듈 속성으로 (테스트에서 경로 교체)
+
+    ov = _load_json(ovp.OVERVIEW_PATH)
+    if ov:
+        out.append(safe("overview", overview_digest, ov, macro))
     for g in load_coverage().groups:
         grp = load_group(g.id)
         if grp:

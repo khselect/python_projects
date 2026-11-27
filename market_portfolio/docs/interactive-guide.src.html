@@ -136,27 +136,28 @@ footer { margin-top: 56px; font-size: 13px; color: var(--ink-3); border-top: 1px
 <!-- ───────── 국면 점수 계산기 ───────── -->
 <section id="macro">
   <h2>② 국면 점수 계산기</h2>
-  <p class="note">① 매크로 국면 화면이 하는 계산입니다. 6개 지표를 우호(+1)·중립(0)·비우호(−1)로 바꿔 보며 점수와 국면이 어떻게 바뀌는지 확인하세요.</p>
+  <p class="note">① 매크로 국면 화면이 하는 계산입니다. 느린 <b>매크로 층 6개</b>와 빠른 <b>시장 층 4개</b>, 모두 10개 지표를 우호(+1)·중립(0)·비우호(−1)로 바꿔 보며 점수와 국면이 어떻게 바뀌는지 확인하세요. 아래 <b>급변 규칙</b>을 켜면 점수와 관계없이 위험회피(급변)가 됩니다.</p>
   <div class="grid2">
     <div class="card" id="indCard"></div>
     <div class="card">
-      <div class="note">국면 점수 (−6 ~ +6)</div>
+      <div class="note">국면 점수 (−10 ~ +10)</div>
       <div style="display:flex;align-items:baseline;gap:14px;margin-top:4px">
         <div class="score" id="score">0</div><span class="badge b-neutral" id="regime">중립·전환</span>
       </div>
       <div class="meter" aria-hidden="true"><i id="meterPin" style="left:50%"></i></div>
-      <div class="meter-l"><span>−6 위험회피 (≤ −3)</span><span>중립·전환</span><span>확장 (≥ +3) +6</span></div>
+      <div class="meter-l"><span>−10 위험회피 (≤ −4)</span><span>중립·전환</span><span>확장 (≥ +4) +10</span></div>
+      <label style="display:block;margin-top:12px"><input type="checkbox" id="stressOn"> 급변 규칙 (VIX ≥ 30 또는 나스닥100 고점 대비 −20% 이하)</label>
       <p class="note" id="regimeText" style="margin-top:12px"></p>
       <div class="presets">
-        <button class="btn" data-preset="1,1,1,1,1,0">강한 확장 예시</button>
-        <button class="btn" data-preset="1,-1,-1,-1,1,-1">예시 화면과 같게</button>
-        <button class="btn" data-preset="-1,-1,-1,-1,-1,-1">전면 위험회피</button>
+        <button class="btn" data-preset="1,1,1,1,1,0,1,1,1,1">강한 확장 예시</button>
+        <button class="btn" data-preset="-1,1,1,-1,1,-1,0,0,0,0">매크로만 보면 0점</button>
+        <button class="btn" data-preset="-1,1,1,-1,1,-1,-1,-1,-1,-1">같은 날 시장 층까지 (급락장)</button>
       </div>
     </div>
   </div>
 
-  <h3 style="margin-top:24px">5거래일 확정 규칙</h3>
-  <p class="note">지표의 그날 판정(원 신호)이 <b>5거래일 연속</b> 같아야 화면의 신호가 바뀝니다. 위 줄의 칸을 눌러 원 신호를 뒤집어 보세요 — 하루 이틀의 흔들림은 무시되고, 주황 테두리가 실제 전환일입니다.</p>
+  <h3 style="margin-top:24px">확정 규칙 (매크로 층 5거래일 · 시장 층 2거래일)</h3>
+  <p class="note">매크로 층 지표는 그날 판정(원 신호)이 <b>5거래일 연속</b> 같아야 화면의 신호가 바뀝니다(시장 층은 2거래일). 아래는 5거래일 예시입니다. 위 줄의 칸을 눌러 원 신호를 뒤집어 보세요 — 하루 이틀의 흔들림은 무시되고, 주황 테두리가 실제 전환일입니다.</p>
   <div class="card"><div class="days" id="days"></div></div>
 </section>
 
@@ -194,7 +195,7 @@ footer { margin-top: 56px; font-size: 13px; color: var(--ink-3); border-top: 1px
   </div>
   <div class="grid2">
     <div class="card">
-      <label class="sl">국면 점수<input type="range" id="sMacro" min="-6" max="6" step="1" value="-2"><output id="oMacro"></output></label>
+      <label class="sl">국면 점수<input type="range" id="sMacro" min="-10" max="10" step="1" value="-2"><output id="oMacro"></output></label>
       <label class="sl">그룹 21일 CAR<input type="range" id="sGroup" min="-3" max="3" step="0.1" value="0"><output id="oGroup"></output></label>
       <label class="sl">P(하락)<input type="range" id="sPdown" min="20" max="80" step="1" value="42"><output id="oPdown"></output></label>
       <label class="sl">90% 하단<input type="range" id="sTail" min="-30" max="-2" step="0.5" value="-10.5"><output id="oTail"></output></label>
@@ -217,7 +218,7 @@ footer { margin-top: 56px; font-size: 13px; color: var(--ink-3); border-top: 1px
     <div><dt>90% 구간</dt><dd>결과의 가운데 90%가 들어가는 범위(5% ~ 95% 위치). 아래쪽 끝이 "나쁠 때의 크기".</dd></div>
     <div><dt>CVaR 5%</dt><dd>가장 나쁜 5% 경우들의 평균. 90% 하단보다 더 나쁜 쪽을 요약한 숫자.</dd></div>
     <div><dt>CAR</dt><dd>누적 초과수익률. 실적일 전후 여러 날의 초과수익을 더한 값. ③ 그룹 상세의 곡선.</dd></div>
-    <div><dt>국면 점수</dt><dd>6개 매크로 지표의 우호(+1)·중립(0)·비우호(−1) 합. +3 이상 확장, −3 이하 위험회피.</dd></div>
+    <div><dt>국면 점수</dt><dd>매크로 층 6개 + 시장 층 4개, 10개 지표의 우호(+1)·중립(0)·비우호(−1) 합(−10~+10). +4 이상 확장, −4 이하 위험회피. VIX ≥ 30 또는 나스닥100 고점 대비 −20% 이하면 급변 규칙으로 위험회피(급변).</dd></div>
     <div><dt>참고용</dt><dd>예측이 실제로 얼마나 맞았는지 검증(보정)하기 전이라는 표시. 모든 확률에 붙습니다.</dd></div>
     <div><dt>동일가중</dt><dd>그룹의 모든 종목에 같은 비중. 그룹 월수익률 = 구성 종목 월수익률의 평균.</dd></div>
   </dl>
@@ -249,10 +250,12 @@ const pct = (x, d = 1) => { const v = +(x * 100).toFixed(d); return (v === 0 ? '
 
 /* ── ① 화면 둘러보기 ── */
 const SHOTS = [
+  { tab: '⓪ 시장 개요', img: '{{IMG_00-overview}}', q: '오늘 무엇이 움직였나',
+    pts: ['맨 위: VIX 국면(안정·보통·위기)과 ① 국면, "국면 근거 보기"로 ①로 이동', '주요 지수 8개 카드: 1일 등락과 60일 추이, VIX는 오르면 불안이라 색을 반대로', '원자재·미 국채(수익률곡선 현재/1개월/1년 전)·섹터 히트맵 — 판정은 하지 않고 수치만'] },
   { tab: '① 매크로 국면', img: '{{IMG_01-macro}}', q: '큰 자금은 어디로 움직이나',
-    pts: ['맨 위: 국면 점수와 국면, 이 국면이 시작된 날', '비교 기준(3·6·12개월 전)을 바꾸면 "변화" 열이 바뀜 — 수준보다 방향 전환을 보는 화면', '근거 열: 판정에 쓴 실제 수치. 신용은 라이선스상 방향만'] },
+    pts: ['맨 위: 국면 점수(−10~+10)와 국면, 매크로 층·시장 층 점수. 급변 규칙이면 빨간 경고', '"왜 몇 점인가" 막대: 지표 10개가 각각 +1·0·−1 중 무엇으로 기여했는지, 마우스를 올리면 지금 값', '아래 표: 비교 기준(3·6·12개월 전)과 지금, 근거 열은 판정에 쓴 실제 수치. 신용은 라이선스상 방향만'] },
   { tab: '① 2년 추이', img: '{{IMG_01-macro-trend}}', q: '국면이 언제 바뀌었나',
-    pts: ['주간 국면 점수. 파란 띠 = 확장 구간, 빨간 띠 = 위험회피 구간', '띠 경계를 자주 넘나들면 전환기일 가능성'] },
+    pts: ['막대 = 층별 점수(하늘색 매크로 층, 주황 시장 층), 선 = 합계', '파란 띠 = 확장, 연한 빨강 띠 = 위험회피, 진한 빨강 세로띠 = 급변 규칙 발동 주', '그 아래 "검증" 펼치기: 과거 하락 구간을 6개 안·10개 안이 며칠 만에 잡았는지'] },
   { tab: '① 지수 비교', img: '{{IMG_01-macro-markets}}', q: '국면이 바뀔 때 지수는',
     pts: ['Nasdaq-100(QQQ)·S&P 100(OEF)를 같은 2년·같은 날짜축에, 시작 주 = 100', '배경 = 국면 점수의 확장(파랑)·위험회피(빨강) 주', 'QQQ/OEF 비율이 오르면 기술주 쪽이 더 강함 (국면 점수에는 안 씀)'] },
   { tab: '② 실적 캘린더', img: '{{IMG_02-calendar}}', q: '이번 달 누가 발표하나',
@@ -295,6 +298,10 @@ const INDS = [
   ['신용', '하이일드 스프레드 3개월 0.1%p 넘게 축소면 우호'],
   ['금리곡선', '역전 해소 6개월 뒤 10Y−2Y ≥ 0.25%p면 우호'],
   ['달러', '달러지수가 200일 평균보다 1% 넘게 아래면 우호'],
+  ['VIX · 시장 층', 'VIX 17 미만 우호, 25 이상 비우호'],
+  ['추세·낙폭 · 시장 층', 'S&P500·나스닥100 모두 200일선 위 + 고점 대비 −5% 이내면 우호, 하나라도 200일선 아래·−10% 이하면 비우호'],
+  ['섹터 폭 · 시장 층', '섹터 ETF 11개 중 200일선 위 60% 이상 우호, 40% 미만 비우호'],
+  ['단기금리 변동 · 시장 층', '2년물 1개월 변화 ±0.10%p 이내 우호, +0.25%p 이상·−0.50%p 이하 비우호'],
 ];
 const sig = INDS.map(() => 0);
 (function () {
@@ -307,19 +314,22 @@ const sig = INDS.map(() => 0);
     card.appendChild(row);
   });
   document.querySelectorAll('[data-preset]').forEach(b => b.onclick = () => { b.dataset.preset.split(',').forEach((v, i) => sig[i] = +v); renderMacro(); });
+  document.getElementById('stressOn').onchange = renderMacro;
 })();
-function regimeOf(s) { return s >= 3 ? ['확장', 'b-up'] : s <= -3 ? ['위험회피', 'b-down'] : ['중립·전환', 'b-neutral']; }
+function regimeOf(s, stress) { return stress ? ['위험회피(급변)', 'b-down'] : s >= 4 ? ['확장', 'b-up'] : s <= -4 ? ['위험회피', 'b-down'] : ['중립·전환', 'b-neutral']; }
 function renderMacro() {
   document.querySelectorAll('#indCard .ind').forEach((row, i) =>
     row.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.v === sig[i]))));
-  const s = sig.reduce((a, b) => a + b, 0), [r, cls] = regimeOf(s);
+  const stress = document.getElementById('stressOn').checked;
+  const s = sig.reduce((a, b) => a + b, 0), [r, cls] = regimeOf(s, stress);
+  const sm = sig.slice(0, 6).reduce((a, b) => a + b, 0), sk = sig.slice(6).reduce((a, b) => a + b, 0);
   document.getElementById('score').textContent = (s > 0 ? '+' : '') + s;
   const rg = document.getElementById('regime'); rg.textContent = r; rg.className = 'badge ' + cls;
-  document.getElementById('meterPin').style.left = ((s + 6) / 12 * 100) + '%';
+  document.getElementById('meterPin').style.left = ((s + 10) / 20 * 100) + '%';
   const up = sig.filter(v => v === 1).length, dn = sig.filter(v => v === -1).length;
   document.getElementById('regimeText').textContent =
-    `우호 ${up}개 · 중립 ${6 - up - dn}개 · 비우호 ${dn}개. ` +
-    (r === '확장' ? '위험자산에 우호적인 지표가 우세합니다.' : r === '위험회피' ? '비우호 지표가 우세합니다.' : '한쪽으로 기울지 않은 상태입니다. 최근 전환이 많으면 국면이 바뀌는 중일 수 있습니다.');
+    `매크로 층 ${sm > 0 ? '+' : ''}${sm} · 시장 층 ${sk > 0 ? '+' : ''}${sk} · 우호 ${up}개 · 중립 ${10 - up - dn}개 · 비우호 ${dn}개. ` +
+    (stress ? '급변 규칙이 발동해 점수와 관계없이 위험회피로 봅니다.' : r === '확장' ? '위험자산에 우호적인 지표가 우세합니다.' : r === '위험회피' ? '비우호 지표가 우세합니다.' : '한쪽으로 기울지 않은 상태입니다. 느린 매크로 층과 빠른 시장 층이 엇갈리면 국면이 바뀌는 중일 수 있습니다.');
 }
 renderMacro();
 
@@ -421,7 +431,7 @@ simulate();
 /* ── ④ 종합 판단 연습 (pf.synth.rules와 같은 규칙) ── */
 const SL = { 1: ['▲ 우호', 's-up'], 0: ['● 중립', 's-0'], '-1': ['▼ 비우호', 's-down'] };
 function synth(score, g, pDown, tail) {
-  const m = score >= 3 ? 1 : score <= -3 ? -1 : 0;
+  const m = score >= 4 ? 1 : score <= -4 ? -1 : 0;
   const gv = g >= 0.005 ? 1 : g <= -0.005 ? -1 : 0;
   const tv = (pDown >= 0.6 || tail <= -0.15) ? -1 : ((1 - pDown) >= 0.6 && tail > -0.15) ? 1 : 0;
   const layers = [['매크로', m, `국면 점수 ${score > 0 ? '+' : ''}${score}`], ['그룹', gv, `과거 21일 초과수익 중앙값 ${pct(g)} (참고용)`], ['종목', tv, `다음 날 P(하락) ${(pDown * 100).toFixed(0)}% · 90% 하단 ${pct(tail)}`]];

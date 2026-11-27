@@ -1,0 +1,49 @@
+# ⓪ 시장 개요 화면 구성 (이 파일만 고치면 패널 항목이 바뀜).
+# market_monitor(khselect/market_monitor)의 universe.yaml에서 화면 패널 4개만 옮김 (11-27).
+# source: yahoo | fred · kind: price(가격) | yield(금리 %, 변화는 bp)
+panels:
+  indices:
+    title: 주요 지수
+    items:
+      - {id: SPX,    name: "S&P 500",   symbol: "^GSPC"}
+      - {id: NDX,    name: "나스닥100",  symbol: "^NDX"}
+      - {id: DJI,    name: "다우",       symbol: "^DJI"}
+      - {id: KOSPI,  name: "코스피",     symbol: "^KS11"}
+      - {id: KOSDAQ, name: "코스닥",     symbol: "^KQ11"}
+      - {id: VIX,    name: "VIX",        symbol: "^VIX"}
+      - {id: DXY,    name: "달러인덱스", symbol: "DX-Y.NYB"}
+      - {id: USDKRW, name: "원/달러",    symbol: "KRW=X"}
+  commodities:
+    title: 원자재 (선물 근월물)
+    items:
+      - {id: WTI,    name: "WTI",     symbol: "CL=F"}
+      - {id: BRENT,  name: "브렌트",   symbol: "BZ=F"}
+      - {id: GOLD,   name: "금",      symbol: "GC=F"}
+      - {id: SILVER, name: "은",      symbol: "SI=F"}
+      - {id: COPPER, name: "구리",    symbol: "HG=F"}
+      - {id: NATGAS, name: "천연가스", symbol: "NG=F"}
+  treasuries:
+    title: 미 국채 금리
+    items:   # FRED (Yahoo에 1년물이 없어 FRED로 통일)
+      - {id: UST1Y,  name: "1년",  symbol: DGS1,  maturity: 1}
+      - {id: UST2Y,  name: "2년",  symbol: DGS2,  maturity: 2}
+      - {id: UST5Y,  name: "5년",  symbol: DGS5,  maturity: 5}
+      - {id: UST10Y, name: "10년", symbol: DGS10, maturity: 10}
+      - {id: UST30Y, name: "30년", symbol: DGS30, maturity: 30}
+  sectors:
+    title: 섹터 (SPDR ETF)
+    items:
+      - {id: XLK,  name: "기술",        symbol: XLK}
+      - {id: XLC,  name: "커뮤니케이션", symbol: XLC}
+      - {id: XLY,  name: "임의소비재",   symbol: XLY}
+      - {id: XLF,  name: "금융",        symbol: XLF}
+      - {id: XLV,  name: "헬스케어",     symbol: XLV}
+      - {id: XLI,  name: "산업재",      symbol: XLI}
+      - {id: XLE,  name: "에너지",      symbol: XLE}
+      - {id: XLB,  name: "소재",        symbol: XLB}
+      - {id: XLP,  name: "필수소비재",   symbol: XLP}
+      - {id: XLU,  name: "유틸리티",     symbol: XLU}
+      - {id: XLRE, name: "부동산",      symbol: XLRE}
+
+# VIX 국면 (5거래일 평균): 안정 < 17 ≤ 보통 < 25 ≤ 위기 — market_monitor와 같은 경계
+vix_regime: {thresholds: [17, 25], window: 5}

@@ -49,3 +49,13 @@ def test_all_templates_pass_wording_check():
         v = synthesize(macro(s), group(g), ticker(*t))
         for txt in [v.title, v.text, *[l.basis for l in v.layers]]:
             assert check_wording(txt) == [], txt
+
+
+def test_macro_layer_uses_published_thresholds_and_stress():
+    """v0.21: 국면 경계는 게시 JSON(±4/10), 급변 규칙이면 점수와 관계없이 비우호."""
+    m = {**macro(3), "thresholds": {"expansion": 4, "riskoff": -4}, "score_range": 10}
+    assert synthesize(m, None, None).layers[0].value == 0  # +3은 이제 중립
+    m["stress"] = {"on": True}
+    m["score"], m["regime"] = 2, "위험회피(급변)"
+    lay = synthesize(m, None, None).layers[0]
+    assert lay.value == -1 and "급변" in lay.basis and "/10" in lay.basis

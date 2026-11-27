@@ -54,6 +54,13 @@ class SyntheticTruth:
     scales: tuple[float, float, float] = (0.03, 0.015, 0.03)
 
 
+# 합성 지수·선물의 마지막 값 (⓪ 시장 개요 화면이 그럴듯하게 보이도록 수준만 맞춘다)
+SYNTH_LEVELS = {
+    "^GSPC": 6700, "^NDX": 24500, "^DJI": 46500, "^KS11": 3900, "^KQ11": 880,
+    "DX-Y.NYB": 99, "KRW=X": 1420, "CL=F": 61, "BZ=F": 65, "GC=F": 3950, "SI=F": 47, "HG=F": 5.0, "NG=F": 4.2,
+}
+
+
 class SyntheticSource(Source):
     """결정론적 합성 데이터. 같은 티커·종료일이면 항상 같은 값."""
 
@@ -70,8 +77,11 @@ class SyntheticSource(Source):
         if no_events is None:  # ETF에는 실적 반응을 넣지 않는다
             from pf.config import load_coverage
 
+            from pf.config import load_overview
+
             ref = load_coverage().reference_etfs
-            no_events = frozenset(t for v in ref.values() for t in v)
+            ov = {i["symbol"] for p in load_overview()["panels"].values() for i in p["items"]}
+            no_events = frozenset({t for v in ref.values() for t in v} | ov)
         self.no_events = no_events
 
     def _calendar(self, start: str) -> pd.DatetimeIndex:
@@ -90,14 +100,21 @@ class SyntheticSource(Source):
             i += 63 + int(rng.integers(-3, 4))
         return dates
 
+    ORIGIN = "2005-01-03"  # 시작일과 무관하게 같은 경로를 만들고 잘라낸다 (⓪·① 화면의 같은 종목 값이 일치하도록)
+
     def prices(self, tickers: list[str], start: str = "2012-01-01") -> pd.DataFrame:
+        full = self._prices(tickers, min(pd.Timestamp(start), pd.Timestamp(self.ORIGIN)))
+        return full[full.index >= pd.Timestamp(start)]
+
+    def _prices(self, tickers: list[str], start) -> pd.DataFrame:
         days = self._calendar(start)
         mkt = self._market(days)
         out = {}
         for t in tickers:
             rng = np.random.default_rng(_seed(t))
             beta = 0.8 + 0.6 * rng.random()
-            ret = beta * mkt + rng.standard_t(5, len(days)) * 0.012
+            idio = 0.003 if t.startswith("^") or "=" in t or t.startswith("DX-") else 0.012  # 지수·선물은 분산된 바스켓
+            ret = beta * mkt + rng.standard_t(5, len(days)) * idio
             # 실적 반응 (장후 발표 → 다음 거래일)
             ev = [] if t in self.no_events else self._event_dates(t, days)
             erng = np.random.default_rng(_seed(t + "#jumps"))
@@ -107,7 +124,13 @@ class SyntheticSource(Source):
                 j = days.get_loc(d) + 1
                 if j < len(days):
                     ret[j] += m[k] + s[k] * erng.standard_t(6)
+            if t == "^VIX":  # 변동성 지수: 시장 21일 실현변동성(연율) × 1.15 + 소음
+                rv = pd.Series(mkt).rolling(21, min_periods=5).std().bfill().to_numpy() * np.sqrt(252) * 100
+                out[t] = np.clip(rv * 1.15 + 2 + rng.normal(0, 0.8, len(days)), 9, None)
+                continue
             out[t] = 100 * np.exp(np.cumsum(np.log1p(np.clip(ret, -0.6, None))))
+            if t in SYNTH_LEVELS:
+                out[t] = out[t] * SYNTH_LEVELS[t] / out[t][-1]
         return pd.DataFrame(out, index=days)
 
     def close_and_splits(self, tickers, start="2014-01-01"):

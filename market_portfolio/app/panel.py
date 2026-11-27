@@ -74,6 +74,9 @@ def _context(page_path: str) -> tuple[str, str | None]:
 
 
 def render(page_path: str) -> None:
+    # 기본(첫) 화면의 url_path는 항상 "" (Streamlit 규칙) → 이름으로 바꿔 쓴다.
+    # (v0.20까지 기본 화면이던 ①에서 page_path == "macro"가 맞지 않아 매크로 해설 대신 그룹 해설이 나오던 버그)
+    page_path = page_path or "overview"
     st.html(STICKY_CSS)
     st.markdown('<div class="synth-anchor"></div>', unsafe_allow_html=True)
     st.markdown("#### 종합 인사이트")
@@ -102,7 +105,9 @@ def _md(s: str) -> str:
 
 def _ai_section(page_path: str, gid: str, t: str | None) -> None:
     """F20 1단계: 매일 배치가 미리 만든 해설을 읽기만 한다 (페이지 조회당 LLM 호출 0)."""
-    if page_path == "macro":
+    if page_path == "overview":
+        d = _ai("overview", "overview") or _ai("macro", "macro")
+    elif page_path == "macro":
         d = _ai("macro", "macro")
     else:
         d = (_ai("ticker", t) if t else None) or _ai("group", gid)

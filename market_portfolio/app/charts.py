@@ -78,27 +78,114 @@ def fan_chart(fan: dict, height: int = 300) -> go.Figure:
     return fig
 
 
-def regime_history(dates: list[str], scores: list[int], hi: int = 3, lo: int = -3, height: int = 260) -> go.Figure:
+def regime_history(dates: list[str], scores: list[int], hi: int = 4, lo: int = -4, height: int = 280,
+                   macro: list[int] | None = None, market: list[int] | None = None,
+                   stress: list[bool] | None = None, rng: int = 10) -> go.Figure:
+    """국면 점수 추이. 층별 점수(매크로·시장)를 막대로 쌓고 합계를 선으로. 급변 주는 진한 빨강 배경."""
+    top = rng + 0.5
     fig = go.Figure()
-    fig.add_hrect(y0=hi - 0.5, y1=6.5, fillcolor="#e6f0fc", line_width=0, layer="below")
-    fig.add_hrect(y0=-6.5, y1=lo + 0.5, fillcolor="#fde8e8", line_width=0, layer="below")
-    fig.add_annotation(x=0, xref="paper", y=6.2, text=f"확장 (≥ +{hi})", showarrow=False, xanchor="left",
+    fig.add_hrect(y0=hi - 0.5, y1=top, fillcolor="#e6f0fc", line_width=0, layer="below")
+    fig.add_hrect(y0=-top, y1=lo + 0.5, fillcolor="#fde8e8", line_width=0, layer="below")
+    for a, b in _runs(dates, stress or []):
+        fig.add_vrect(x0=a, x1=b, fillcolor="#f4b4b4", line_width=0, layer="below", opacity=0.7)
+    fig.add_annotation(x=0, xref="paper", y=top - 0.4, text=f"확장 (≥ +{hi})", showarrow=False, xanchor="left",
                        font=dict(color=INK_2, size=11))
-    fig.add_annotation(x=0, xref="paper", y=-6.2, text=f"위험회피 (≤ {lo})", showarrow=False, xanchor="left",
+    fig.add_annotation(x=0, xref="paper", y=-top + 0.4, text=f"위험회피 (≤ {lo})", showarrow=False, xanchor="left",
                        font=dict(color=INK_2, size=11))
+    if macro is not None and market is not None:
+        fig.add_bar(x=dates, y=macro, name="매크로 층", marker_color="#9cc3ef",
+                    hovertemplate="%{x}<br>매크로 층 %{y:+d}<extra></extra>")
+        fig.add_bar(x=dates, y=market, name="시장 층", marker_color="#f6a96f",
+                    hovertemplate="%{x}<br>시장 층 %{y:+d}<extra></extra>")
     fig.add_scatter(
-        x=dates, y=scores, mode="lines", line=dict(color=MEDIAN, width=2, shape="hv"), name="국면 점수",
+        x=dates, y=scores, mode="lines", line=dict(color=MEDIAN, width=2, shape="hv"), name="국면 점수(합)",
         hovertemplate="%{x}<br>국면 점수 %{y:+d}<extra></extra>",
     )
     fig.add_hline(y=0, line=dict(color=INK, width=1))
     fig = _layout(fig, height, "", "국면 점수")
-    fig.update_layout(showlegend=False, margin=dict(l=8, r=64, t=8, b=8), hovermode="x")
+    fig.update_layout(showlegend=macro is not None, barmode="relative", bargap=0.1,
+                      margin=dict(l=8, r=64, t=28 if macro is not None else 8, b=8), hovermode="x unified")
     fig.update_xaxes(ticksuffix="", tickformat="%y.%m", range=[dates[0], dates[-1]])
-    fig.update_yaxes(range=[-6.5, 6.5], tickvals=[-6, -3, 0, 3, 6])
+    step = 5 if rng >= 10 else 3
+    fig.update_yaxes(range=[-top, top], tickvals=list(range(-rng, rng + 1, step)))
+    return fig
+
+
+def _runs(dates: list[str], flags: list[bool]) -> list[tuple[str, str]]:
+    runs, start, prev = [], None, None
+    for d, f in zip(dates, flags):
+        if f and start is None:
+            start = d
+        if not f and start is not None:
+            runs.append((start, prev))
+            start = None
+        prev = d
+    if start is not None:
+        runs.append((start, prev))
+    return runs
+
+
+def score_breakdown(indicators: list[dict], labels: dict[str, str]) -> go.Figure:
+    """지표별 기여(+1·0·−1) 막대. 층별로 묶고 0은 회색 점으로 보이게 한다."""
+    names, vals, colors, text, hover = [], [], [], [], []
+    for ind in indicators:
+        v = ind["signal"]
+        names.append(f"{ind['name']} · {labels[ind['layer']]}")
+        vals.append(0.06 if v == 0 else (0 if v is None else v))
+        colors.append("#bbbbbb" if v in (0, None) else (UP if v > 0 else DOWN))
+        text.append("신호 없음" if v is None else {1: "+1 우호", 0: "0 중립", -1: "−1 비우호"}[int(v)])
+        hover.append(ind.get("basis", ""))
+    fig = go.Figure(go.Bar(y=names, x=vals, orientation="h", marker_color=colors, text=text, textposition="outside",
+                           customdata=hover, hovertemplate="%{y}<br>%{text}<br>%{customdata}<extra></extra>",
+                           cliponaxis=False))
+    fig = _layout(fig, 34 * len(names) + 40, "", "")
+    fig.update_layout(showlegend=False, margin=dict(l=8, r=72, t=8, b=8))
+    fig.update_xaxes(range=[-1.5, 1.5], tickvals=[-1, 0, 1], ticktext=["−1", "0", "+1"], ticksuffix="", zeroline=True,
+                     zerolinecolor=INK)
+    fig.update_yaxes(autorange="reversed", ticksuffix="")
     return fig
 
 
 DIVERGING = [[0.0, DOWN], [0.5, "#efefef"], [1.0, UP]]
+
+
+def yield_curve(curve: dict, height: int = 230) -> go.Figure:
+    """수익률 곡선: 현재·1개월 전·1년 전. x = 만기(년, 로그 간격 대신 범주)."""
+    x = [f"{m}년" for m in curve["maturities"]]
+    fig = go.Figure()
+    style = {"현재": (MEDIAN, "solid", 3), "1개월 전": ("#f47230", "dash", 2), "1년 전": ("#999999", "dot", 2)}
+    for k, (col, dash, w) in style.items():
+        if any(v is not None for v in curve.get(k, [])):
+            fig.add_scatter(x=x, y=curve[k], mode="lines+markers", name=k, line=dict(color=col, dash=dash, width=w),
+                            hovertemplate=f"{k} %{{x}}: %{{y:.2f}}%<extra></extra>")
+    fig = _layout(fig, height, "", "금리 (%)")
+    fig.update_layout(margin=dict(l=8, r=8, t=28, b=8), hovermode="x unified")
+    fig.update_xaxes(ticksuffix="", type="category")
+    fig.update_yaxes(ticksuffix="")
+    return fig
+
+
+def sector_heatmap(items: list[dict], periods=("1D", "1W", "1M", "3M", "YTD", "1Y"), height: int = 380) -> go.Figure:
+    """섹터 × 기간 수익률 히트맵. 열마다 범위가 달라 색은 열 안에서 비교한다(칸에 값 표기)."""
+    items = sorted(items, key=lambda i: i.get("1M") or 0, reverse=True)
+    names = [i["name"] + (" ▲" if (i.get("vs_ma200") or 0) > 0 else " ▽") for i in items]
+    z, text = [], []
+    for i in items:
+        row = [None if i.get(p) is None else i[p] * 100 for p in periods]
+        z.append(row)
+        text.append(["" if v is None else f"{v:+.1f}" for v in row])
+    # 열별 정규화: 열 안의 최대 절댓값으로 나눠 −1~1 (기간마다 변동 폭이 달라서)
+    cols = list(zip(*z)) if z else []
+    scale = [max([abs(v) for v in c if v is not None] or [1]) or 1 for c in cols]
+    zn = [[None if v is None else v / scale[j] for j, v in enumerate(row)] for row in z]
+    fig = go.Figure(go.Heatmap(z=zn, x=list(periods), y=names, text=text, texttemplate="%{text}", colorscale=DIVERGING,
+                               zmin=-1, zmax=1, showscale=False, customdata=z, xgap=2, ygap=2,
+                               hovertemplate="%{y} %{x}: %{customdata:+.1f}%<extra></extra>"))
+    fig = _layout(fig, height, "", "")
+    fig.update_layout(margin=dict(l=8, r=8, t=8, b=8))
+    fig.update_xaxes(ticksuffix="", side="top")
+    fig.update_yaxes(ticksuffix="", autorange="reversed")
+    return fig
 
 
 DRAWDOWN = [[0.0, DOWN], [1.0, "#f4f4f4"]]  # 낙폭은 한 방향(0 이하)이라 단일 색 계열
@@ -188,7 +275,7 @@ def _regime_runs(dates: list[str], scores: list[int], hi: int, lo: int) -> list[
     return runs
 
 
-def market_compare(m: dict, hist_dates: list[str], hist_scores: list[int], hi: int = 3, lo: int = -3,
+def market_compare(m: dict, hist_dates: list[str], hist_scores: list[int], hi: int = 4, lo: int = -4,
                    height: int = 280) -> go.Figure:
     """Nasdaq-100·S&P 100 지수 비교 (시작 주 = 100, 한 축). 배경 = 국면 점수의 확장·위험회피 구간."""
     fig = go.Figure()

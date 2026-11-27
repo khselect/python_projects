@@ -81,6 +81,15 @@ def _indicator_fact(ind: dict) -> str:
             detail = f", 200일 평균 대비 {pct(v['vs_ma'])}"
         elif k == "curve" and "level" in v:
             detail = f", 10년−2년 금리차 {v['level']:+.2f}%p"
+        elif k == "vix" and "level" in v:
+            detail = f", VIX {v['level']:.1f} (최근 1개월 최고 {v.get('max_1m', v['level']):.1f})"
+        elif k == "trend" and "spx_dd" in v and "ndx_dd" in v:
+            detail = (f", S&P500 고점 대비 {pct(v['spx_dd'])}·200일선 대비 {pct(v.get('spx_vs_ma'))}, "
+                      f"나스닥100 고점 대비 {pct(v['ndx_dd'])}·200일선 대비 {pct(v.get('ndx_vs_ma'))}")
+        elif k == "sectors" and "share" in v:
+            detail = f", 200일선 위 섹터 비율 {round(v['share'] * 100):d}%"
+        elif k == "rates" and "d1m" in v:
+            detail = f", 2년물 {v.get('y2', 0):.2f}%, 1개월 변화 {v['d1m']:+.2f}%p"
     elif v.get("direction"):
         detail = f", 스프레드 방향 {v['direction']} (값은 비공개)"
     since = f", {ind['last_switch']}부터" if ind.get("last_switch") else ""
@@ -90,11 +99,21 @@ def _indicator_fact(ind: dict) -> str:
 def macro_digest(macro: dict) -> Digest:
     inds = macro["indicators"]
     cnt = {lab: sum(1 for i in inds if SIGNAL.get(i["signal"]) == lab) for lab in ("우호", "중립", "비우호")}
+    rng = macro.get("score_range", len(inds))
+    th = macro.get("thresholds") or {"expansion": 3, "riskoff": -3}
     facts = [
-        f"국면 점수 {fmt_score(macro['score'])} (범위 −6~+6), 국면 '{macro['regime']}', {macro['regime_since']}부터",
+        f"국면 점수 {fmt_score(macro['score'])} (범위 −{rng}~+{rng}, +{th['expansion']} 이상 확장, {th['riskoff']} 이하 위험회피), "
+        f"국면 '{macro['regime']}', {macro['regime_since']}부터",
         f"{len(inds)}개 지표 중 우호 {cnt['우호']}개, 중립 {cnt['중립']}개, 비우호 {cnt['비우호']}개",
     ]
-    facts += [_indicator_fact(i) for i in inds]
+    for lay in (macro.get("layers") or {}).values():
+        facts.append(f"{lay['name']} 점수 {fmt_score(lay['score'])} ({lay['n']}개 지표, {lay['confirm_days']}거래일 확정)")
+    stress = macro.get("stress") or {}
+    if stress.get("on"):
+        why = [w for w, on in (("VIX 30 이상", stress.get("vix")), ("나스닥100 고점 대비 −20% 이하", stress.get("ndx_dd"))) if on]
+        facts.append(f"급변 규칙 발동({', '.join(why)}): 점수와 관계없이 위험회피(급변)로 표시")
+    layer_of = {"macro": "매크로 층", "market": "시장 층"}
+    facts += [f"[{layer_of.get(i.get('layer', 'macro'))}] " + _indicator_fact(i) for i in inds]
     for m in ("3", "6", "12"):
         c = (macro.get("compare") or {}).get(m)
         if c:
@@ -105,8 +124,51 @@ def macro_digest(macro: dict) -> Digest:
         facts.append(f"{mk['dates'][0]}부터 기준일까지 누적 변화: {chg}")
     return Digest(
         "macro", "macro", "① 매크로 국면", macro["asof"], facts,
-        _terms(["regime_score", "liquidity", "commodity", "breadth", "credit", "curve", "dollar"]),
+        _terms(["regime_score", "stress", "vix", "trend", "sectors", "rates", "breadth", "credit", "curve"]),
         [f"macro.json ({macro['asof']})"],
+    )
+
+
+# ── ⓪ 시장 개요 ──────────────────────────────────────────
+
+def overview_digest(ov: dict, macro: dict | None = None) -> Digest:
+    """수치 요약만. 판정 문장은 ① 국면(매크로 근거)에서 가져온다."""
+    P = ov["panels"]
+    by = {i["id"]: i for k in ("indices", "commodities") for i in P[k]["items"] if not i.get("missing")}
+    facts = []
+    vr = ov.get("vix_regime")
+    if vr:
+        facts.append(f"VIX 국면 '{vr['label']}' (5거래일 평균 {vr['avg']:.1f}, 최근 1개월 최고 {vr['max_1m']:.1f}; "
+                     f"{vr['thresholds'][0]} 미만 안정, {vr['thresholds'][1]} 이상 위기)")
+    if macro:
+        facts.append(f"① 국면 점수 {fmt_score(macro['score'])}/{macro.get('score_range', 6)}, 국면 '{macro['regime']}'")
+    for k in ("SPX", "NDX", "KOSPI", "VIX", "DXY", "USDKRW"):
+        i = by.get(k)
+        if i:
+            facts.append(f"{i['name']} {i['last']:,.2f}, 1일 {pct(i.get('1D'))}, 1개월 {pct(i.get('1M'))}, "
+                         f"52주 고점 대비 {pct(i.get('from_hi'))}")
+    for k in ("WTI", "GOLD", "COPPER"):
+        i = by.get(k)
+        if i:
+            facts.append(f"{i['name']} 1개월 {pct(i.get('1M'))}, 연초 대비 {pct(i.get('YTD'))}")
+    ty = {i["id"]: i for i in P["treasuries"]["items"] if not i.get("missing")}
+    for k in ("UST2Y", "UST10Y"):
+        i = ty.get(k)
+        if i:
+            facts.append(f"미 국채 {i['name']} {i['last']:.2f}%, 1개월 변화 {i['bp']['1M']:+.0f}bp")
+    sp = P["treasuries"].get("spread")
+    if sp:
+        facts.append(f"10년−2년 금리차 {sp['bp']:+.0f}bp" + (" (역전)" if sp["inverted"] else ""))
+    sec = [i for i in P["sectors"]["items"] if not i.get("missing") and i.get("1M") is not None]
+    if sec:
+        sec.sort(key=lambda i: i["1M"], reverse=True)
+        above = sum(1 for i in sec if (i.get("vs_ma200") or 0) > 0)
+        facts.append(f"섹터 1개월 수익률 상위 {sec[0]['name']} {pct(sec[0]['1M'])}, 하위 {sec[-1]['name']} {pct(sec[-1]['1M'])}; "
+                     f"200일선 위 섹터 {above}/{len(sec)}개")
+    return Digest(
+        "overview", "overview", "⓪ 시장 개요", ov["asof"], facts,
+        _terms(["vix", "sectors", "regime_score"]),
+        [f"overview.json ({ov['asof']})"] + ([f"macro.json ({macro['asof']})"] if macro else []),
     )
 
 
