@@ -106,12 +106,22 @@ def build(df: pd.DataFrame, source_name: str, hi: int = 4, lo: int = -4, prices:
             "values": _values(last, ind.key),
         })
     st_on = _stress(last)
+    mc = {**DEFAULT_MARKET, **(market_cfg or {})}
+    since_on = None
+    if st_on:
+        off = df.index[df["stress"] != 1]
+        since_on = (df.index[df.index > off[-1]][0] if len(off) else df.index[0]).date().isoformat()
     stress = {
         "on": st_on,
+        "since": since_on,
+        "entry_today": bool(last.get("stress_entry", 0) == 1),
         "vix": bool(last.get("stress_vix", 0) == 1),
         "ndx_dd": bool(last.get("stress_dd", 0) == 1),
-        "rule": (market_cfg or {}).get("stress_vix") and
-        f"VIX ≥ {market_cfg['stress_vix']} 또는 나스닥100 고점 대비 {market_cfg['stress_ndx_dd'] * 100:.0f}% 이하",
+        "calm_run": int(last.get("stress_calm_run", 0) or 0),
+        "rule": f"진입: VIX ≥ {mc['stress_vix']} 또는 나스닥100 고점 대비 {mc['stress_ndx_dd'] * 100:.0f}% 이하 (즉시)",
+        "exit_rule": f"해제: VIX < {mc['stress_exit_vix']} 이고 나스닥100 고점 대비 {mc['stress_exit_ndx_dd'] * 100:.0f}%보다 회복이 "
+                     f"{mc['stress_exit_days']}거래일 연속",
+        "exit_days": int(mc["stress_exit_days"]),
     }
     n_layer = {k: sum(1 for i in INDICATORS if i.layer == k) for k in LAYER_NAME}
     return {

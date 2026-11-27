@@ -110,8 +110,13 @@ def macro_digest(macro: dict) -> Digest:
         facts.append(f"{lay['name']} 점수 {fmt_score(lay['score'])} ({lay['n']}개 지표, {lay['confirm_days']}거래일 확정)")
     stress = macro.get("stress") or {}
     if stress.get("on"):
-        why = [w for w, on in (("VIX 30 이상", stress.get("vix")), ("나스닥100 고점 대비 −20% 이하", stress.get("ndx_dd"))) if on]
-        facts.append(f"급변 규칙 발동({', '.join(why)}): 점수와 관계없이 위험회피(급변)로 표시")
+        since = f" {stress['since']}부터" if stress.get("since") else ""
+        if stress.get("entry_today", True):
+            why = [w for w, on in (("VIX 30 이상", stress.get("vix")), ("나스닥100 고점 대비 −20% 이하", stress.get("ndx_dd"))) if on]
+            facts.append(f"급변 규칙 발동{since}({', '.join(why)}): 점수와 관계없이 위험회피(급변)로 표시")
+        else:
+            facts.append(f"급변 규칙 유지{since}: 진입 조건은 풀렸지만 해제 조건(VIX 25 미만이고 나스닥100 고점 대비 −15%보다 회복이 "
+                         f"{stress.get('exit_days', 5)}거래일 연속) 충족 전, 진정 {stress.get('calm_run', 0)}거래일째")
     layer_of = {"macro": "매크로 층", "market": "시장 층"}
     facts += [f"[{layer_of.get(i.get('layer', 'macro'))}] " + _indicator_fact(i) for i in inds]
     for m in ("3", "6", "12"):
@@ -124,7 +129,7 @@ def macro_digest(macro: dict) -> Digest:
         facts.append(f"{mk['dates'][0]}부터 기준일까지 누적 변화: {chg}")
     return Digest(
         "macro", "macro", "① 매크로 국면", macro["asof"], facts,
-        _terms(["regime_score", "stress", "vix", "trend", "sectors", "rates", "breadth", "credit", "curve"]),
+        _terms(["regime_score", "stress"]),  # 지표별 기준은 근거 문장에 값으로 이미 있다 (근거가 길면 12b가 느려짐, 11-27 실측 52초)
         [f"macro.json ({macro['asof']})"],
     )
 
@@ -167,7 +172,7 @@ def overview_digest(ov: dict, macro: dict | None = None) -> Digest:
                      f"200일선 위 섹터 {above}/{len(sec)}개")
     return Digest(
         "overview", "overview", "⓪ 시장 개요", ov["asof"], facts,
-        _terms(["vix", "sectors", "regime_score"]),
+        _terms(["vix"]),
         [f"overview.json ({ov['asof']})"] + ([f"macro.json ({macro['asof']})"] if macro else []),
     )
 
@@ -229,7 +234,7 @@ def group_digest(group: dict, valuation: dict | None = None, macro: dict | None 
     facts += _verdict_facts(macro, group, None)
     return Digest(
         "group", g["id"], f"③ 그룹 상세 — {g['name']}", group["asof"], facts,
-        _terms(["car", "interval90", "regime_score"]),
+        _terms(["car", "interval90"]),
         [f"group/{g['id']}.json ({group['asof']})"] + ([f"valuation/{g['id']}.json"] if valuation else [])
         + (["macro.json"] if macro else []),
         loss,

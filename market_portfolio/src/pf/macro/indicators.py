@@ -5,6 +5,8 @@
   시장 층(빠름, 4개):  VIX · 추세·낙폭 · 섹터 폭 · 단기금리 변동, 2거래일 확정
 중립 구간은 config/model.yaml macro.neutral / macro.market.
 급변 규칙: VIX ≥ 30 또는 나스닥100 고점 대비 −20% 이하면 점수와 관계없이 "위험회피(급변)" (확정 기간 없음).
+  해제는 VIX 25 미만 + 나스닥100 고점 대비 −15%보다 회복이 5거래일 연속일 때 (v0.22 히스테리시스 —
+  v0.21은 VIX가 30 아래로 내려온 날 바로 풀려 VIX 28 같은 불안한 구간이 중립으로 보였다, 11-27 운영).
 
 v0.20까지는 매크로 층 6개만 있어 주가·변동성을 직접 보는 지표가 없었다 → 나스닥 급락·VIX 급등에도
 점수 0이 나올 수 있었다(11-26 운영에서 확인). 시장 층을 더하고 경계를 ±3/6 → ±4/10으로 옮겼다.
@@ -110,6 +112,9 @@ DEFAULT_MARKET = {
     "rates_down": -0.50,                   # Δ ≤ −0.50%p → 비우호(위기성 급락, 안전자산 쏠림)
     "stress_vix": 30,
     "stress_ndx_dd": -0.20,
+    "stress_exit_vix": 25,                 # 해제: VIX가 이 값 미만이고
+    "stress_exit_ndx_dd": -0.15,           #       나스닥100이 고점 대비 이보다 회복한 날이
+    "stress_exit_days": 5,                 #       이만큼 연속돼야 풀린다 (빨리 들어가고 천천히 나오기)
 }
 
 
@@ -136,6 +141,21 @@ def days_since_inversion(curve: pd.Series) -> pd.Series:
     last = curve.index.to_series().where(curve < 0).ffill()
     d = (curve.index.to_series() - last).dt.days
     return d.fillna(10_000).where(curve.notna())
+
+
+def stress_hold(entry: pd.Series, calm: pd.Series, exit_days: int) -> tuple[pd.Series, pd.Series]:
+    """급변 상태: entry인 날 켜지고, calm이 exit_days 거래일 연속이면 꺼진다. (상태, 진정 연속 일수)"""
+    on, run = False, 0
+    st, rn = np.zeros(len(entry)), np.zeros(len(entry))
+    for i, (e, c) in enumerate(zip(entry.to_numpy(), calm.to_numpy())):
+        if e:
+            on, run = True, 0
+        elif on:
+            run = run + 1 if c else 0
+            if run >= exit_days:
+                on, run = False, 0
+        st[i], rn[i] = float(on), float(run if on else 0)
+    return pd.Series(st, index=entry.index), pd.Series(rn, index=entry.index)
 
 
 def _market_layer(df: pd.DataFrame, prices: pd.DataFrame, fred: dict[str, pd.Series], mk: dict) -> None:
@@ -187,11 +207,14 @@ def _market_layer(df: pd.DataFrame, prices: pd.DataFrame, fred: dict[str, pd.Ser
     df["val_rates_y2"], df["val_rates_d1m"] = y2, d21
     df["raw_rates"] = _tri(d21.abs() <= mk["rates_calm"], (d21 >= mk["rates_up"]) | (d21 <= mk["rates_down"]), d21.notna())
 
-    # 급변 (확정 기간 없음)
+    # 급변 — 진입은 즉시, 해제는 진정 조건이 연속돼야 (v0.22 히스테리시스)
     stress_vix = vix >= mk["stress_vix"]
     stress_dd = dd["ndx"] <= mk["stress_ndx_dd"]
+    entry = stress_vix | stress_dd
+    calm = (vix < mk["stress_exit_vix"]) & (dd["ndx"] > mk["stress_exit_ndx_dd"])
     df["stress_vix"], df["stress_dd"] = stress_vix.astype(float), stress_dd.astype(float)
-    df["stress"] = (stress_vix | stress_dd).astype(float)
+    df["stress_entry"] = entry.astype(float)  # v0.21 방식(즉시 해제) — 검증 비교용
+    df["stress"], df["stress_calm_run"] = stress_hold(entry, calm, int(mk["stress_exit_days"]))
 
 
 def compute(prices: pd.DataFrame, fred: dict[str, pd.Series], neutral: dict | None = None,

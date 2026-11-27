@@ -84,8 +84,14 @@ c3.markdown(
 )
 stress = d.get("stress") or {}
 if stress.get("on"):
-    why = " · ".join(w for w, on in (("VIX 30 이상", stress.get("vix")), ("나스닥100 고점 대비 −20% 이하", stress.get("ndx_dd"))) if on)
-    st.error(f"**급변 규칙 발동** — {why}. 점수와 관계없이 위험회피(급변)로 표시합니다.", icon="⚠️")
+    since = f" ({stress['since']}부터)" if stress.get("since") else ""
+    if stress.get("entry_today", True):
+        why = " · ".join(w for w, on in (("VIX 30 이상", stress.get("vix")), ("나스닥100 고점 대비 −20% 이하", stress.get("ndx_dd"))) if on)
+        st.error(f"**급변 규칙 발동{since}** — {why}. 점수와 관계없이 위험회피(급변)로 표시합니다.", icon="⚠️")
+    else:
+        st.error(f"**급변 규칙 유지{since}** — 진입 조건은 풀렸지만 해제 조건을 기다리는 중입니다 "
+                 f"(진정 {stress.get('calm_run', 0)}/{stress.get('exit_days', 5)}거래일). {stress.get('exit_rule', '')}.",
+                 icon="⚠️")
 
 # ── 점수 분해 ────────────────────────────────────────────
 st.markdown(f"**왜 {fmt_score(d['score'])}점인가 — 지표별 기여**", help="막대 하나가 지표 하나의 확정 신호(+1·0·−1)입니다. 마우스를 올리면 지금 값을 보여줍니다.")
@@ -140,17 +146,26 @@ eff = [th["riskoff"] if st_ else sc for sc, st_ in zip(h["score"], h.get("stress
 # ── 검증: 과거 스트레스 구간을 얼마나 빨리 잡았나 ───────────
 ev = load_eval()
 if ev:
-    with st.expander(f"검증 — 과거 하락 구간 탐지 ({ev['period'][0][:4]}~{ev['period'][1][:4]}, 지표 6개 안 vs 10개 안)"):
-        v6, v10 = ev["variants"]["v6"], ev["variants"]["v10"]
+    vs = ev["variants"]
+    v6, v10 = vs["v6"], vs["v10"]
+    vi = vs.get("v10i")
+    with st.expander(f"검증 — 과거 하락 구간 탐지 ({ev['period'][0][:4]}~{ev['period'][1][:4]}, 설계안 {len(vs)}개 비교)"):
+        def cmp(key, fmt):
+            parts = [f"v0.21 {fmt(vi[key])}"] if vi else []
+            return " · ".join(parts + [f"기존안 {fmt(v6[key])}"])
+
         k = st.columns(4)
         k[0].metric("탐지 (현재안)", f"{v10['detected']}/{v10['detected'] + v10['missed']}",
-                    f"기존안 {v6['detected']}/{v6['detected'] + v6['missed']}", delta_color="off", delta_arrow="off")
-        k[1].metric("−10% 도달일 대비 (중앙)", "—" if v10["median_vs_confirm10"] is None else f"{v10['median_vs_confirm10']:+.0f}일",
-                    "—" if v6["median_vs_confirm10"] is None else f"기존안 {v6['median_vs_confirm10']:+.0f}일", delta_color="off", delta_arrow="off",
-                    help="음수면 S&P 500이 고점 대비 −10%에 닿기 전에 위험회피로 바뀌었다는 뜻 (거래일)")
-        k[2].metric("오경보 (연)", f"{v10['false_alarms_per_year']:.2f}", f"기존안 {v6['false_alarms_per_year']:.2f}", delta_color="off", delta_arrow="off",
+                    cmp("detected", lambda x: str(x)), delta_color="off", delta_arrow="off")
+        md = lambda x: "—" if x is None else f"{x:+.0f}일"  # noqa: E731
+        k[1].metric("−10% 도달일 대비 (중앙)", md(v10["median_vs_confirm10"]), cmp("median_vs_confirm10", md),
+                    delta_color="off", delta_arrow="off",
+                    help="음수면 S&P 500이 52주 고점 대비 −10%에 닿기 전에 위험회피로 바뀌었다는 뜻 (거래일)")
+        k[2].metric("오경보 (연)", f"{v10['false_alarms_per_year']:.2f}", cmp("false_alarms_per_year", lambda x: f"{x:.2f}"),
+                    delta_color="off", delta_arrow="off",
                     help="위험회피로 들어갔는데 이후 63거래일 최대 낙폭이 −7%보다 얕았던 횟수")
-        k[3].metric("위험회피 비중", f"{v10['riskoff_share']:.0%}", f"기존안 {v6['riskoff_share']:.0%}", delta_color="off", delta_arrow="off")
+        k[3].metric("위험회피 비중", f"{v10['riskoff_share']:.0%}", cmp("riskoff_share", lambda x: f"{x:.0%}"),
+                    delta_color="off", delta_arrow="off")
 
         def cell(r):
             if r["detected"] is None:
@@ -159,13 +174,18 @@ if ev:
                 return "고점 전부터 위험회피"
             return f"{r['detected']} (고점 후 {r['lag_from_peak']}일 · −10% 대비 {r['vs_confirm10']:+d}일)"
 
-        st.dataframe(pd.DataFrame([{"고점": e["peak"], "저점": e["trough"], "낙폭": f"{e['depth'] * 100:.1f}%",
-                                    "기존안(6개)": cell(a), "현재안(10개)": cell(b)}
-                                   for e, a, b in zip(ev["episodes"], v6["per_episode"], v10["per_episode"])]),
-                     hide_index=True, width="stretch")
-        st.caption(f"하락 구간 = S&P 500이 고점 대비 {ev['rules']['episode_dd'] * 100:.0f}% 이상 빠진 구간. "
-                   f"기존안은 매크로 6개·경계 ±3, 현재안은 10개·경계 ±4 + 급변 규칙. {ev.get('note', '')}. "
-                   "과거 구간에 맞춰 경계를 고르면 과적합이 될 수 있어, 경계를 바꿀 때는 근거를 PLAN에 기록합니다.")
+        rows = []
+        for i, e in enumerate(ev["episodes"]):
+            row = {"고점": e["peak"], "저점": e["trough"], "낙폭": f"{e['depth'] * 100:.1f}%", "기존안(6개)": cell(v6["per_episode"][i])}
+            if vi:
+                row["v0.21(즉시 해제)"] = cell(vi["per_episode"][i])
+            row["현재안(히스테리시스)"] = cell(v10["per_episode"][i])
+            rows.append(row)
+        st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+        st.caption(f"하락 구간 = S&P 500이 52주 고점 대비 {ev['rules']['episode_dd'] * 100:.0f}% 이상 빠진 구간. "
+                   "기존안은 매크로 6개·경계 ±3, v0.21은 10개·경계 ±4 + 급변 규칙(조건이 풀린 날 바로 해제), "
+                   "현재안은 급변 해제에 히스테리시스(VIX 25 미만·나스닥100 −15%보다 회복이 5거래일 연속). "
+                   f"{ev.get('note', '')}. 과거 구간에 맞춰 경계를 고르면 과적합이 될 수 있어, 경계를 바꿀 때는 근거를 PLAN에 기록합니다.")
 
 # ── 지수 비교 (Nasdaq-100 · S&P 100) ─────────────────────
 mk = d.get("markets")

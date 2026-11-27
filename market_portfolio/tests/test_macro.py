@@ -141,6 +141,19 @@ def test_market_layer_confirms_in_two_days():
     assert df["stress"].iloc[-1] == 1  # 급변 규칙은 확정 기간 없이 즉시
 
 
+def test_stress_holds_after_vix_falls_below_entry():
+    """v0.22: VIX가 30 아래로 내려와도 25 미만이 5거래일 이어질 때까지 급변 유지 (11-27 운영 사례: VIX 28)."""
+    px, fred = _market_frame()
+    v = px.columns.get_loc("^VIX")
+    px.iloc[-8, v] = 35.0
+    px.iloc[-7:, v] = 28.0
+    df = compute(px, fred)
+    assert df["stress_entry"].iloc[-1] == 0 and df["stress"].iloc[-1] == 1
+    px.iloc[-7:, v] = 20.0  # 진정 7일 → 5일째 해제
+    df = compute(px, fred)
+    assert df["stress"].iloc[-3] == 0 and df["stress"].iloc[-4] == 1
+
+
 def test_missing_market_inputs_leave_signal_empty():
     px, fred = _market_frame()
     df = compute(px[["DBC", "RSP", "SPY"]], {k: v for k, v in fred.items() if k != "DGS2"})

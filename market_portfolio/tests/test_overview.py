@@ -55,16 +55,52 @@ def test_episodes_and_detection_lag():
     v = np.r_[np.linspace(100, 120, 100), np.linspace(120, 90, 60), np.linspace(90, 130, 240)]
     px = pd.Series(v, index=idx)
     eps = episodes(px)
-    assert len(eps) == 1 and eps[0]["peak"] == idx[100]  # 같은 값이면 나중 날을 고점으로 and abs(eps[0]["depth"] + 0.25) < 1e-9
+    assert len(eps) == 1 and eps[0]["peak"] == idx[99]  # 52주 안 최고가 처음 나온 날 and abs(eps[0]["depth"] + 0.25) < 1e-9
     df = pd.DataFrame(index=idx)
     df["score_macro"] = 0.0
     df["score"] = 0.0
     df["stress"] = 0.0
     for c in ("raw_vix", "raw_trend", "raw_sectors", "raw_rates"):
         df[c] = 0.0
-    df.loc[idx[125]:idx[160], "score"] = -5  # 고점 후 25거래일에 위험회피
+    df.loc[idx[125]:idx[160], "score"] = -5  # 고점 후 26거래일에 위험회피
     df["score_market"] = 0.0
     res = evaluate(df, px, 4, -4)
     v10, v6 = res["variants"]["v10"], res["variants"]["v6"]
-    assert v10["detected"] == 1 and v10["per_episode"][0]["lag_from_peak"] == 25
+    assert v10["detected"] == 1 and v10["per_episode"][0]["lag_from_peak"] == 26
     assert v6["missed"] == 1  # 매크로 층만 보는 기존안은 놓침
+
+
+def test_episodes_use_52_week_high_not_all_time_high():
+    """v0.22: 역대 최고가 기준이면 큰 하락 뒤 회복 전의 두 번째 하락(2010·2011형)이 한 구간에 묻힌다."""
+    idx = pd.bdate_range("2008-01-01", periods=1200)
+    v = np.r_[np.linspace(100, 60, 300),      # 큰 하락 (−40%)
+              np.linspace(60, 85, 400),       # 회복하지만 이전 고점(100) 아래
+              np.linspace(85, 68, 100),       # 두 번째 하락 −20% (52주 고점 85 기준)
+              np.linspace(68, 110, 400)]
+    eps = episodes(pd.Series(v, index=idx))
+    assert len(eps) == 2
+    assert abs(eps[1]["depth"] + 0.20) < 0.01 and eps[1]["peak"] == idx[699]
+
+
+def test_stress_hysteresis_enter_fast_exit_slow():
+    from pf.macro.indicators import stress_hold
+
+    idx = pd.RangeIndex(12)
+    entry = pd.Series([0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], index=idx).astype(bool)
+    calm = pd.Series([1, 0, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1], index=idx).astype(bool)
+    on, run = stress_hold(entry, calm, 5)
+    assert on.tolist() == [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0]  # 진정이 끊기면(5번째 날) 다시 셈, 5일 연속 뒤 해제
+    assert run.iloc[9] == 4 and run.iloc[10] == 0
+
+
+def test_eval_reports_immediate_vs_hysteresis():
+    idx = pd.bdate_range("2020-01-01", periods=400)
+    px = pd.Series(np.r_[np.linspace(100, 120, 100), np.linspace(120, 90, 60), np.linspace(90, 130, 240)], index=idx)
+    df = pd.DataFrame(0.0, index=idx, columns=["score_macro", "score", "score_market", "stress", "stress_entry",
+                                               "raw_vix", "raw_trend", "raw_sectors", "raw_rates"])
+    df.loc[idx[130]:idx[131], "stress_entry"] = 1   # 이틀만 진입 조건
+    df.loc[idx[130]:idx[150], "stress"] = 1         # 히스테리시스로 더 길게 유지
+    res = evaluate(df, px, 4, -4)
+    vi, v10 = res["variants"]["v10i"], res["variants"]["v10"]
+    assert vi["detected"] == v10["detected"] == 1
+    assert v10["riskoff_share"] > vi["riskoff_share"]
