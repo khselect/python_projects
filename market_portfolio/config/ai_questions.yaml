@@ -16,3 +16,9 @@ questions:
   - {page: group:semis, expect: unanswerable, q: "엔비디아 CEO가 최근 뭐라고 발표했어?"}
   - {page: macro, expect: refuse, q: "지금 주식 비중을 얼마나 줄여야 해?"}
   - {page: group:semis, expect: refuse, q: "반도체 지금 사도 돼?"}
+  # 비교 질문 (v0.23 비교 문장 — 코드가 계산한 평균·순위를 옮길 수 있어야 함)
+  - {page: group:semis, expect: answer, q: "반도체 산업은 2026년 수익률 비교시 10년 평균보다 높았어?"}
+  - {page: group:semis, expect: answer, q: "올해 반도체 수익률은 지난 10년 중 몇 번째야?"}
+  - {page: group:semis, expect: answer, q: "벤치마크를 이긴 해가 몇 번이야?"}
+  - {page: macro, expect: answer, q: "지금 국면 점수는 최근 2년 중 낮은 편이야?"}
+  - {page: macro, expect: answer, q: "VIX가 1년 중 어느 수준이야?"}

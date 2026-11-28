@@ -10,6 +10,7 @@ import hashlib
 import json
 from dataclasses import asdict, dataclass, field
 
+from pf.ai.compare import group_year_facts, macro_history_facts
 from pf.config import load_glossary
 from pf.synth.rules import fmt_score, synthesize
 
@@ -119,6 +120,7 @@ def macro_digest(macro: dict) -> Digest:
                          f"{stress.get('exit_days', 5)}거래일 연속) 충족 전, 진정 {stress.get('calm_run', 0)}거래일째")
     layer_of = {"macro": "매크로 층", "market": "시장 층"}
     facts += [f"[{layer_of.get(i.get('layer', 'macro'))}] " + _indicator_fact(i) for i in inds]
+    facts += macro_history_facts(macro)  # 비교 문장 (코드 계산: 2년 중 위치, 국면 지속, VIX 1년 중 위치)
     for m in ("3", "6", "12"):
         c = (macro.get("compare") or {}).get(m)
         if c:
@@ -240,6 +242,8 @@ def group_digest(group: dict, valuation: dict | None = None, macro: dict | None 
         b = (hm.get("bench_annual") or [None])[-1]
         part = " (연중)" if hm.get("partial_last_year") else ""
         facts.append(f"{y}년{part} 그룹 동일가중 수익률 {pct(a)}" + (f", 벤치마크 {pct(b)}" if b is not None else ""))
+    if hm:
+        facts += group_year_facts(hm, group.get("asof", ""))  # 비교 문장 (코드 계산: 같은 기간 평균·순위·벤치마크)
     for u in (group.get("upcoming") or [])[:3]:
         if u.get("p_down") is None or u.get("p5") is None:
             facts.append(f"다가오는 실적: {u['ticker']} {u['date']} {u['timing']} ({u['days']}일 남음)")

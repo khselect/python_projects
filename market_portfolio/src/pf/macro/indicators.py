@@ -168,6 +168,9 @@ def _market_layer(df: pd.DataFrame, prices: pd.DataFrame, fred: dict[str, pd.Ser
     lo, hi = mk["vix"]
     df["val_vix_level"] = vix
     df["val_vix_max_1m"] = vix.rolling(21, min_periods=1).max()
+    df["val_vix_max_1y"] = vix.rolling(D1Y, min_periods=60).max()
+    # 최근 1년(그날 포함 252거래일) 중 그날보다 낮았던 날의 비율 — AI 근거 비교 문장용
+    df["val_vix_pct_1y"] = vix.rolling(D1Y, min_periods=60).apply(lambda w: (w[:-1] < w[-1]).mean(), raw=True)
     df["raw_vix"] = _tri(vix < lo, vix >= hi, vix.notna())
 
     # 추세·낙폭: S&P 500, 나스닥100
