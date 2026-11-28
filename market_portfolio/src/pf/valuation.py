@@ -81,6 +81,7 @@ def ticker_daily(close: pd.Series, q: pd.DataFrame, splits: pd.Series | None, la
     return pd.DataFrame({
         "mcap": close * al["shares_adj"],
         "ni": al["ni_ttm"], "fcf": al["fcf_ttm"], "ocf": al["ocf_ttm"], "capex": al["capex_ttm"],
+        "q_end": pd.to_datetime(al["fiscal_end"]),  # 그날 반영된 최근 분기 말 (상태 표시용)
     }, index=close.index)
 
 

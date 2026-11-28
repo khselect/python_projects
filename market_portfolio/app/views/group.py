@@ -127,6 +127,16 @@ VALUATION_GUIDE = """
 """
 
 
+def status_text(r: dict) -> str:
+    """종목별 상태 — 데이터 상태와 계산상 주의점 (좋다·나쁘다 판정 아님)."""
+    if r.get("missing"):
+        return "재무 수집 대기 (하루 20회 한도로 나눠 받는 중)"
+    flags = r.get("flags") or []
+    got = (r.get("fetched_at") or "")[:10]
+    base = f"반영 중 · 재무 받은 날 {got}" if got else "반영 중"
+    return " · ".join([base] + flags)
+
+
 def valuation_reading(ins: dict | None) -> list[str]:
     """밸류에이션 해설 — 계산값을 고정 문장 틀에 넣는다 (서술형, 판정·권유 없음)."""
     if not ins:
@@ -189,9 +199,12 @@ else:
         "P/FCF": "—" if r.get("missing") or r["pfcf"] is None else f"{r['pfcf']:.1f}",
         "FCF 전환율": "—" if r.get("missing") or r["conv"] is None else f"{r['conv'] * 100:.0f}%",
         "설비투자/영업현금": "—" if r.get("missing") or r["capex_share"] is None else f"{r['capex_share'] * 100:.0f}%",
-        "상태": "수집 대기" if r.get("missing") else "",
+        "최근 분기": "—" if r.get("missing") else (r.get("q_end") or "—"),
+        "상태": status_text(r),
     } for r in v["latest"]]
-    st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+    st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch",
+                 column_config={"상태": st.column_config.TextColumn("상태", width="large",
+                                help="데이터 상태와 계산상 주의점입니다(좋다·나쁘다 판정 아님). 최근 분기 = 지금 배수에 반영된 마지막 분기 말 — 분기 말 45일 뒤부터 반영")})
     miss = cv["missing"]
     st.caption(
         f":gray-background[참고용] 후행 12개월(TTM) 기준 — 분기 실적은 분기 말 {v['params']['report_lag_days']}일 뒤부터 반영. "

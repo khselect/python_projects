@@ -72,8 +72,24 @@ def publish_valuation(source: Source | None = None, fund_client=None, refresh: b
             if t not in got or got[t].dropna().empty:
                 latest.append({"ticker": t, "missing": True})
                 continue
-            row = got[t].dropna().iloc[-1]
+            row = got[t].dropna(subset=["mcap", "ni", "fcf"]).iloc[-1]
+            q_end = row.get("q_end")
+            asof_t = got[t].dropna(subset=["mcap"]).index[-1]
+            flags = []  # 상태 칸: 계산상 주의점 (판정 아님)
+            if row["ni"] <= 0:
+                flags.append("순이익 적자 — P/E 계산 안 함")
+            if row["fcf"] <= 0:
+                flags.append("FCF 음수 — P/FCF 계산 안 함")
+            elif row["ni"] > 0 and row["fcf"] / row["ni"] < 0.5:
+                flags.append("FCF가 이익의 절반 미만")
+            if row["ocf"] > 0 and row["capex"] / row["ocf"] >= 0.5:
+                flags.append("설비투자가 영업현금의 절반 이상")
+            stale = pd.notna(q_end) and (asof_t - pd.Timestamp(q_end)).days > 150
+            if stale:
+                flags.append("최근 분기 실적 미반영(150일 넘음)")
             latest.append({
+                "q_end": None if pd.isna(q_end) else pd.Timestamp(q_end).date().isoformat(),
+                "flags": flags,
                 "ticker": t,
                 "pe": _r(row["mcap"] / row["ni"]) if row["ni"] > 0 else None,
                 "pfcf": _r(row["mcap"] / row["fcf"]) if row["fcf"] > 0 else None,

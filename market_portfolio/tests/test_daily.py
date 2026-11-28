@@ -60,6 +60,9 @@ def test_daily_publishes_all_industry_groups(tmp_data):
     assert st["ai"]["ok"] and st["ai"]["backend"] == "fake" and st["ai"]["template"] == 0
     assert st["overview"]["ok"] and (tmp_data / "publish" / "overview.json").exists()
     assert (tmp_data / "publish" / "macro_eval.json").exists()
+    v = json.loads((tmp_data / "publish" / "valuation" / "bigtech.json").read_text(encoding="utf-8"))
+    have = [r for r in v["latest"] if not r.get("missing")]
+    assert have and all(r["q_end"] and isinstance(r["flags"], list) for r in have)  # 상태 칸 (11-28: 비어 보이던 문제)
     assert (tmp_data / "publish" / "ai" / "overview_overview.json").exists()
     assert (tmp_data / "publish" / "ai" / "macro_macro.json").exists()
     assert (tmp_data / "publish" / "ai" / "group_semis.json").exists()
