@@ -199,7 +199,7 @@ def _qa_section(page_path: str, gid: str, t: str | None) -> None:
 
     from pf.ai.qa import answer
 
-    st.markdown("**질문하기**", help="지금 보는 화면의 수치와 용어 설명만 근거로 로컬 AI(기본 gemma3:4b, 아래에서 모델 선택)가 답합니다. "
+    st.markdown("**질문하기**", help="지금 보는 화면의 수치와 용어 설명만 근거로 로컬 AI(기본 qwen3:8b, 아래에서 모델 선택)가 답합니다. "
                 "답의 숫자·날짜는 근거와 코드로 대조하고, 맞지 않으면 답 대신 근거를 보여줍니다. "
                 "매수·매도·비중·목표가 질문은 AI를 부르지 않고 안내합니다. 개인정보는 입력하지 마세요.")
     cfg, gate = _qa_runtime()
