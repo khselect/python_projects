@@ -172,6 +172,13 @@ if ev:
                          delta_color="off", delta_arrow="off",
                          help="하락 구간(고점 30일 전 ~ 저점) 밖에서 위험회피였던 날의 비율. 오경보 횟수는 진입만 세므로, "
                               "오래 머무는 설계의 비용은 이 값으로 봅니다")
+            if "rebound_lag_share" in v10:
+                k2[2].metric("└ 반등 지연", f"{v10['rebound_lag_share']:.0%}", cmp("rebound_lag_share", lambda x: f"{x:.0%}"),
+                             delta_color="off", delta_arrow="off",
+                             help="헛 위험회피 중 저점 뒤 63거래일 안 — 하락은 끝났는데 아직 위험회피로 남아 반등 초기를 늦게 인정한 날")
+                k2[3].metric("└ 순수 헛경보", f"{v10['pure_false_share']:.0%}", cmp("pure_false_share", lambda x: f"{x:.0%}"),
+                             delta_color="off", delta_arrow="off",
+                             help="헛 위험회피 중 나머지 — 하락 구간과도 반등기와도 무관하게 위험회피였던 날")
             k2[1].metric("하락 구간 중 위험회피", f"{v10['riskoff_in_episodes']:.0%}", cmp("riskoff_in_episodes", lambda x: f"{x:.0%}"),
                          delta_color="off", delta_arrow="off", help="하락 구간(고점 30일 전 ~ 저점) 날 중 위험회피였던 비율 — 높을수록 하락을 오래 잡고 있음")
 

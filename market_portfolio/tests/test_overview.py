@@ -127,3 +127,16 @@ def test_false_riskoff_share():
     df.loc[idx[300]:idx[339], "score"] = -5   # 구간 밖 40일 (헛 위험회피)
     v = evaluate(df, px, 4, -4)["variants"]["v10"]
     assert v["false_riskoff_share"] == round(40 / 400, 3) and v["riskoff_in_episodes"] > 0.4
+
+
+def test_false_riskoff_split_rebound_vs_pure():
+    """헛 위험회피 = 반등 지연(저점 뒤 63거래일 안) + 순수 헛경보."""
+    idx = pd.bdate_range("2020-01-01", periods=400)
+    px = pd.Series(np.r_[np.linspace(100, 120, 100), np.linspace(120, 90, 60), np.linspace(90, 130, 240)], index=idx)
+    df = pd.DataFrame(0.0, index=idx, columns=["score_macro", "score", "score_market", "stress", "stress_entry",
+                                               "raw_vix", "raw_trend", "raw_sectors", "raw_rates"])
+    df.loc[idx[160]:idx[179], "score"] = -5   # 저점(159) 바로 뒤 20일 → 반등 지연
+    df.loc[idx[330]:idx[349], "score"] = -5   # 한참 뒤 20일 → 순수 헛경보
+    v = evaluate(df, px, 4, -4)["variants"]["v10"]
+    assert v["rebound_lag_share"] == round(20 / 400, 3) and v["pure_false_share"] == round(20 / 400, 3)
+    assert abs(v["false_riskoff_share"] - (v["rebound_lag_share"] + v["pure_false_share"])) < 0.002

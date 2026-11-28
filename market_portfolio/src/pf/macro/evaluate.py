@@ -36,6 +36,7 @@ EVAL_PATH = PUBLISH_DIR.parent / "macro_eval.json"
 EPISODE_DD = -0.15
 CONFIRM_DD = -0.10
 FA_HORIZON, FA_DD = 63, -0.07
+REBOUND_DAYS = 63  # 저점 뒤 이 기간의 위험회피는 '반등 지연'으로 따로 센다
 
 
 def episodes(px: pd.Series, depth: float = EPISODE_DD, window: int = 252) -> list[dict]:
@@ -110,6 +111,13 @@ def score_variant(df: pd.DataFrame, px: pd.Series, eps: list[dict], variant: str
     # 헛 위험회피 일수: 하락 구간(고점 30일 전 ~ 저점) 밖에서 위험회피였던 날의 비율.
     # 오경보 '횟수'는 위험회피 진입만 세므로, 오래 머무는 설계(히스테리시스)가 유리하게 보인다 → 기간으로도 본다.
     false_days = ro & ~in_ep
+    # 나눠 보기 (v0.22): 저점 뒤 63거래일 안은 '반등 지연'(하락은 끝났는데 아직 위험회피), 그 밖은 '순수 헛경보'
+    rebound = pd.Series(False, index=px.index)
+    for e in eps:
+        k = pos[e["trough"]]
+        rebound.iloc[k + 1:k + 1 + REBOUND_DAYS] = True
+    lag_days = false_days & rebound
+    pure_false = false_days & ~rebound
     lags = [r["lag_from_peak"] for r in rows if r["lag_from_peak"] is not None and not r["already_on"]]
     vs = [r["vs_confirm10"] for r in rows if r["vs_confirm10"] is not None and not r["already_on"]]
     return {
@@ -124,6 +132,8 @@ def score_variant(df: pd.DataFrame, px: pd.Series, eps: list[dict], variant: str
         "false_alarm_dates": fa[-10:],
         "riskoff_share": round(float(ro.mean()), 3),
         "false_riskoff_share": round(float(false_days.mean()), 3),
+        "rebound_lag_share": round(float(lag_days.mean()), 3),
+        "pure_false_share": round(float(pure_false.mean()), 3),
         "riskoff_in_episodes": round(float((ro & in_ep).sum() / max(in_ep.sum(), 1)), 3),
     }
 
@@ -175,7 +185,8 @@ def report(res: dict) -> str:
     for v in vs.values():
         lines.append(f"- {v['name']}: 탐지 {v['detected']}/{v['detected'] + v['missed']} (고점 전부터 {v['already_on']}), 고점→탐지 중앙 {v['median_lag_from_peak']}거래일, "
                      f"−10% 도달일 대비 중앙 {v['median_vs_confirm10']}일, 오경보 {v['false_alarms']}회({v['false_alarms_per_year']}/년), "
-                     f"위험회피 비중 {v['riskoff_share']:.0%} (하락 구간 밖 {v.get('false_riskoff_share', 0):.0%}, "
+                     f"위험회피 비중 {v['riskoff_share']:.0%} (하락 구간 밖 {v.get('false_riskoff_share', 0):.0%} = "
+                     f"반등 지연 {v.get('rebound_lag_share', 0):.0%} + 순수 헛경보 {v.get('pure_false_share', 0):.0%}, "
                      f"하락 구간 중 {v.get('riskoff_in_episodes', 0):.0%})")
     lines.append(res.get("note", ""))
     return "\n".join(lines)
