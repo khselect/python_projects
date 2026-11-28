@@ -206,3 +206,14 @@ def test_page_evidence_trimmed_when_target_routed():
     long_page = Digest("macro", "macro", "II. 매크로 국면", "2026-11-25", [f"사실 {i}" for i in range(20)])
     ev = QA.evidence(long_page, "반도체는?", extra=[SEMIS])
     assert "사실 5" in ev and "사실 6" not in ev and ev.index("반도체") < ev.index("II. 매크로")
+
+
+def test_user_message_ends_with_answer_instruction():
+    """11-28 운영: 근거 목록으로 끝나는 메시지에 qwen3:8b가 목록을 이어 적음 → 질문 앞뒤 + 답하라는 지시로 끝냄."""
+    llm = Scripted("[근거]\n- 국면 점수 -1", GOOD)
+    r = QA.answer("국면 점수가 뭐야?", D, llm, CFG, extra=[])
+    first = llm.calls[0]
+    assert first.startswith("[질문] 국면 점수가 뭐야?") and first.rstrip().endswith(QA.ANSWER_TAIL)
+    assert first.count("[질문] 국면 점수가 뭐야?") == 2
+    assert QA.ANSWER_TAIL in llm.calls[1] and "근거 형식을 그대로 복사함" in llm.calls[1]
+    assert r["mode"] == "ai" and r["attempts"][0]["text"].startswith("[근거]")  # 반려된 원문도 기록

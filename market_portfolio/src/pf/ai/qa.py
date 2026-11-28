@@ -35,7 +35,16 @@ SYSTEM = """너는 market.sielain.com 대시보드의 질문 도우미다. 사�
 7. [근거]·[용어] 같은 표시나 목록을 그대로 복사하지 말고, 질문에 맞는 내용만 골라 문장으로 풀어 쓴다.
 8. 서술형 '~입니다'체, 2~5문장, 제목·목록·마크다운 없이 답한다."""
 
-FALLBACK = "검증을 통과한 답을 만들지 못해 질문과 가까운 근거를 대신 보여드립니다: "
+FALLBACK = "AI 문장이 검증을 통과하지 못해, 질문과 가장 가까운 근거 문장으로 답합니다: "
+ANSWER_TAIL = ("위 [근거]만 사용해 [질문]에 2~5문장으로 답하라. [화면]·[근거]·[용어] 표시나 '- ' 목록을 옮겨 적지 말고, "
+               "질문 대상의 이름을 넣어 답 문장만 써라.")
+
+
+def build_user(ev: str, q: str, feedback: str = "") -> str:
+    """질문을 앞뒤에 두고 마지막에 답하라는 지시로 끝낸다.
+    11-28 운영: 근거 목록으로 끝나는 메시지에 qwen3:8b가 답 대신 목록을 이어 적음(근거 형식 복사·대상 미언급으로 반려)."""
+    fb = f"\n\n직전 답변은 다음 문제로 반려되었다: {feedback}. 근거에 있는 숫자만 그대로 쓰고 다시 답하라." if feedback else ""
+    return f"[질문] {q}\n\n{ev}\n\n[질문] {q}\n{ANSWER_TAIL}{fb}"
 UNANSWERABLE = "이 화면의 자료로는 답할 수 없습니다"
 
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+")
@@ -276,7 +285,7 @@ def answer(question: str, d: Digest, client, cfg: dict | None = None, gate: Gate
     names = [n for _, _, ns in targets(q) for n in ns]
     ev = evidence(d, q, cfg["evidence_chars"], extra)
     allowed_text = ev + "\n" + q  # 질문에 나온 숫자를 되받아 쓰는 것은 허용
-    user = f"{ev}\n\n[질문] {q}"
+    user = build_user(ev, q)
     attempts = []
     try:
         with (gate or Gate(cfg["queue_max"])):
@@ -291,12 +300,12 @@ def answer(question: str, d: Digest, client, cfg: dict | None = None, gate: Gate
                     return done({"mode": "error", "text": "지금 AI에 연결할 수 없습니다. 잠시 뒤 다시 시도해 주세요.",
                                  "issues": [str(e)], "attempts": attempts, "evidence": ev})
                 issues = answer_issues(r.text, allowed_text, names)
-                attempts.append({"issues": issues, "seconds": r.seconds, "tokens": r.eval_count})
+                attempts.append({"issues": issues, "seconds": r.seconds, "tokens": r.eval_count,
+                                 "text": redact(r.text)[:300]})  # 반려 원인을 보려고 원문 앞부분 기록
                 if not issues:
                     return done({"mode": "ai", "text": r.text, "model": r.model, "attempts": attempts, "evidence": ev,
                                  "routed": [f"{x.kind}:{x.key}" for x in extra]})
-                user = (f"{ev}\n\n[질문] {q}\n\n직전 답변은 다음 문제로 반려되었다: {'; '.join(issues)}. "
-                        "근거에 있는 숫자만 그대로 쓰고 다시 답하라.")
+                user = build_user(ev, q, "; ".join(issues))
     except Busy:
         return done({"mode": "busy", "text": "지금 질문이 많아 대기열이 찼습니다. 잠시 뒤 다시 시도해 주세요."})
     return done({"mode": "fallback", "text": fallback_text(d, q, extra), "issues": attempts[-1]["issues"],

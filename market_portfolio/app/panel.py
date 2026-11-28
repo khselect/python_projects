@@ -189,7 +189,7 @@ def _page_digest(page_path: str, gid: str, t: str | None):
 
 QA_MODE_NOTE = {
     "refused": "범위 밖 질문 — AI를 부르지 않고 안내했습니다",
-    "fallback": "검증을 통과한 답이 없어 근거 일부를 보여줍니다",
+    "fallback": "AI 문장 대신 근거 문장 (아래 사유로 반려)",
     "limit": "한도 안내", "busy": "대기열 가득", "error": "연결 오류",
 }
 
