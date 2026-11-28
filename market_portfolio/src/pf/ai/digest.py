@@ -195,6 +195,16 @@ def _valuation_facts(val: dict | None) -> list[str]:
         if last["conv"] is not None:
             parts.append(f"FCF 전환율 {last['conv']:.2f}")
         out.append(", ".join(parts) + f" (재무 확보 {n:.0f}종목 합산)")
+    ins = val.get("insight")
+    if ins:
+        out.append(f"후행 P/E는 {ins['since'][:4]}년 이후 날의 {round(ins['pe_pct'] * 100):d}%보다 높음 "
+                   f"(중앙값 {ins['pe_median']:.1f}배)")
+        if ins.get("mcap_chg_1y") is not None and ins.get("pe_1y") is not None:
+            out.append(f"1년 전 후행 P/E {ins['pe_1y']:.1f}배; 그 사이 시가총액 {pct(ins['mcap_chg_1y'], 0)}, "
+                       f"순이익 {pct(ins['ni_chg_1y'], 0)}")
+        if ins.get("conv_1y") is not None and ins.get("capex_share") is not None and ins.get("capex_share_1y") is not None:
+            out.append(f"1년 전 FCF 전환율 {ins['conv_1y']:.2f}, 설비투자 ÷ 영업현금흐름 {pct(ins['capex_share_1y'], 0).lstrip('+')} → "
+                       f"지금 {pct(ins['capex_share'], 0).lstrip('+')}")
     fwd = (val.get("forward_pe") or {}).get("values") or []
     if fwd and fwd[-1] is not None:
         out.append(f"선행 P/E {fwd[-1]:.1f}배")

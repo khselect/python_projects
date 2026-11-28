@@ -313,6 +313,15 @@ def _val_range(v: dict) -> list[str]:
     return [t["dates"][0], end]
 
 
+def _n_marks(fig: go.Figure, v: dict, label: bool = True) -> None:
+    """반영 종목 수가 바뀐 주에 점선 — 그날의 계단 변화는 밸류에이션이 아니라 구성 변화."""
+    for c in v.get("n_changes") or []:
+        fig.add_vline(x=c["date"], line=dict(color=INK_2, width=1, dash="dot"))
+        if label:
+            fig.add_annotation(x=c["date"], y=1, yref="paper", text=f"{c['n']}종목", showarrow=False, yanchor="bottom",
+                               font=dict(size=10, color=INK_2))
+
+
 def valuation_chart(v: dict, height: int = 300) -> go.Figure:
     """그룹 후행 P/E·P/FCF (한 축, 둘 다 배수) + 선행 P/E(오늘부터 누적)."""
     t = v["ttm"]
@@ -331,6 +340,7 @@ def valuation_chart(v: dict, height: int = 300) -> go.Figure:
         if last is not None:
             fig.add_annotation(x=t["dates"][-1], y=last, text=f"{name} {last:.1f}", showarrow=False, xanchor="left",
                                xshift=4, font=dict(size=11, color=col))
+    _n_marks(fig, v)
     fig = _layout(fig, height, "", "배수 (배)")
     fig.update_layout(margin=dict(l=8, r=76, t=36, b=8), hovermode="x unified")
     fig.update_xaxes(ticksuffix="", tickformat="%y", range=_val_range(v))
@@ -346,6 +356,7 @@ def valuation_gap_chart(v: dict, height: int = 200) -> go.Figure:
                     line=dict(color=PFCF_COLOR, width=1.5), fillcolor="rgba(244,114,48,0.15)", customdata=conv,
                     hovertemplate="%{x}<br>괴리 %{y:+.1f}배<br>FCF 전환율 %{customdata:.0f}%<extra></extra>")
     fig.add_hline(y=0, line=dict(color=INK, width=1))
+    _n_marks(fig, v, label=False)
     fig = _layout(fig, height, "", "P/FCF − P/E")
     fig.update_layout(showlegend=False, margin=dict(l=8, r=76, t=8, b=8))
     fig.update_xaxes(ticksuffix="", tickformat="%y", range=_val_range(v))

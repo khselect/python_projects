@@ -95,3 +95,59 @@ def test_publish_valuation_offline(tmp_val):
     assert conv[-1] < conv[-60] and d["ttm"]["gap"][-1] > d["ttm"]["gap"][-60]
     assert len(d["forward_pe"]["values"]) == 1  # 오늘부터 누적
     assert (tmp_val / "publish" / "valuation" / "bigtech.json").stat().st_size < 50 * 1024
+
+
+def _split_case(restated: bool):
+    """NVDA형: 2021-07 4:1, 2024-06 10:1. restated=True면 보고 주식수가 이미 현재 기준(AV가 나중 보고서 값으로 수정)."""
+    ends = pd.date_range("2020-03-31", "2025-03-31", freq="QE")
+    cur = 24.4e9  # 현재 기준 주식수
+    sp = pd.Series([4.0, 10.0], index=pd.to_datetime(["2021-07-20", "2024-06-10"]))
+    if restated:
+        shares = np.full(len(ends), cur)
+    else:
+        f = np.where(ends < "2021-07-20", 40.0, np.where(ends < "2024-06-10", 10.0, 1.0))
+        shares = cur / f
+    return ends, sp, shares
+
+
+def test_split_factor_as_filed_shares_are_adjusted():
+    from pf.valuation import split_factor
+
+    ends, sp, shares = _split_case(restated=False)
+    adj = shares * split_factor(ends, sp, shares)
+    assert np.allclose(adj, 24.4e9)
+
+
+def test_split_factor_restated_shares_not_double_counted():
+    """11-28 운영: AV 주식수가 이미 분할 반영 → 항상 곱하면 시가총액 40배·10배, 그룹 P/E 1,000배."""
+    from pf.valuation import split_factor
+
+    ends, sp, shares = _split_case(restated=True)
+    assert np.allclose(split_factor(ends, sp, shares), 1.0)
+
+
+def test_split_factor_mixed_and_trailing_split():
+    from pf.valuation import split_factor
+
+    ends, sp, shares = _split_case(restated=False)
+    shares = shares.copy()
+    shares[ends < "2021-07-20"] *= 4  # 2021 분할은 이미 반영, 2024 분할은 제출 당시 값
+    adj = shares * split_factor(ends, sp, shares)
+    assert np.allclose(adj, 24.4e9)
+    late = pd.Series([2.0], index=pd.to_datetime(["2025-06-01"]))  # 마지막 분기 뒤 분할 → 분할 전 값으로 보고 곱함
+    assert np.allclose(split_factor(ends, late, np.full(len(ends), 1e9)), 2.0)
+
+
+def test_insight_decomposes_pe_change():
+    from pf.valuation import insight
+
+    idx = pd.bdate_range("2023-01-02", periods=400)
+    mcap = pd.Series(np.linspace(1000, 1200, 400), index=idx)
+    ni = pd.Series(np.r_[np.full(148, 20.0), np.full(252, 40.0)], index=idx)
+    df = pd.DataFrame({"mcap": mcap, "ni": ni, "fcf": ni * 0.8, "ocf": ni * 1.2, "capex": ni * 0.4, "n": 3})
+    df["pe"], df["conv"], df["capex_share"] = df["mcap"] / df["ni"], df["fcf"] / df["ni"], df["capex"] / df["ocf"]
+    ins = insight(df)
+    assert abs(ins["ni_chg_1y"] - 1.0) < 1e-9 and ins["mcap_chg_1y"] > 0  # 이익 두 배 → 배수 하락은 이익 쪽
+    assert ins["pe"] < ins["pe_1y"] and 0 <= ins["pe_pct"] <= 1
+    df.loc[idx[-1], "n"] = 4  # 구성 변화가 있으면 분해 생략
+    assert "mcap_chg_1y" not in insight(df)

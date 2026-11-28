@@ -116,6 +116,50 @@ st.dataframe(annual, hide_index=True, width="stretch")
 st.caption("동일가중 = 매달 초 구성 종목에 같은 비중 (구성 종목 월수익률의 평균). 시가총액가중은 v1에서 추가.")
 
 # ── 밸류에이션: P/E·P/FCF와 괴리 ──────────────────────────
+VALUATION_GUIDE = """
+- **파란 선 P/E**와 **주황 선 P/FCF**는 둘 다 *그룹 시가총액 ÷ 최근 1년(4개 분기) 합계*입니다. P/E는 순이익으로, P/FCF는 잉여현금흐름(영업현금흐름 − 설비투자)으로 나눕니다.
+- **배수가 내려가는 이유는 두 가지**입니다: 주가(시가총액)가 내리거나, 이익이 늘거나. 위 "지금 읽는 법"의 1년 변화가 둘 중 어느 쪽이었는지 나눠 보여줍니다.
+- **두 선이 붙어 움직이면** 이익만큼 현금이 남는 상태입니다. **주황이 파랑 위로 벌어지면**(아래 그래프 괴리 > 0) 이익보다 남는 현금이 적다는 뜻이고, 보통 설비투자·재고·매출채권이 늘 때 나타납니다. 주황이 아래면 감가상각 등으로 현금이 이익보다 많은 상태입니다.
+- **계단 모양**은 분기 실적이 분기 말 45일 뒤(발표 무렵) 한 번에 반영되기 때문입니다. 그 사이 움직임은 주가 변화입니다.
+- **점선 세로선**은 재무를 확보한 종목 수가 바뀐 날입니다. 그날의 급변은 밸류에이션 변화가 아니라 그룹 구성 변화입니다.
+- 그룹 배수는 **시가총액 가중**이라 큰 종목의 영향이 큽니다. 종목별 값은 아래 표에서 보세요.
+- 그룹 전체 이익이나 FCF가 0 이하인 날은 배수를 비워 둡니다(음수 배수는 의미가 없어서).
+"""
+
+
+def valuation_reading(ins: dict | None) -> list[str]:
+    """밸류에이션 해설 — 계산값을 고정 문장 틀에 넣는다 (서술형, 판정·권유 없음)."""
+    if not ins:
+        return []
+    out = [f"후행 P/E **{ins['pe']:.1f}배** — {ins['since'][:4]}년 이후 지금보다 낮았던 날의 비율 **{ins['pe_pct'] * 100:.0f}%** "
+           f"(중앙값 {ins['pe_median']:.1f}배, 10~90% 범위 {ins['pe_p10']:.0f}~{ins['pe_p90']:.0f}배)."]
+    if ins.get("pe_1y") is not None:
+        s = f"1년 전({ins['date_1y']}) {ins['pe_1y']:.1f}배 → 지금 {ins['pe']:.1f}배."
+        m, n = ins.get("mcap_chg_1y"), ins.get("ni_chg_1y")
+        if m is not None and n is not None:
+            import math
+            lm, ln = math.log1p(m), math.log1p(n)
+            driver = "주가(시가총액)" if abs(lm) >= abs(ln) else "이익"
+            s += (f" 그 사이 시가총액 {m * 100:+.0f}%, 순이익 {n * 100:+.0f}% — 배수 변화는 주로 **{driver}** 쪽에서 왔습니다.")
+        else:
+            s += " 그 사이 반영 종목 수가 바뀌어 주가·이익 분해는 생략합니다."
+        out.append(s)
+    c, c1 = ins.get("conv"), ins.get("conv_1y")
+    if c is not None:
+        s = f"FCF 전환율(FCF ÷ 순이익) **{c * 100:.0f}%**" + (f" (1년 전 {c1 * 100:.0f}%)" if c1 is not None else "")
+        k, k1 = ins.get("capex_share"), ins.get("capex_share_1y")
+        if k is not None:
+            s += f", 설비투자 ÷ 영업현금흐름 {k * 100:.0f}%" + (f" (1년 전 {k1 * 100:.0f}%)" if k1 is not None else "")
+        s += "."
+        if c1 is not None and k is not None and k1 is not None:
+            if c < c1 - 0.05 and k > k1 + 0.05:
+                s += " 이익 대비 남는 현금이 줄었고 같은 기간 설비투자 비중이 커졌습니다 — 괴리가 벌어진 배경으로 읽힙니다."
+            elif c > c1 + 0.05:
+                s += " 이익 대비 남는 현금이 1년 전보다 늘었습니다."
+        out.append(s)
+    return out
+
+
 st.subheader("밸류에이션 — P/E · P/FCF 괴리", help="이익(P/E)과 현금흐름(P/FCF)으로 잰 배수가 벌어지면, 이익만큼 현금이 남지 않는다는 뜻입니다 (예: 설비투자 급증).")
 v = valuation_json(gid)
 cv = (v or {}).get("coverage", {"have": [], "missing": list(g.members)})
@@ -130,7 +174,13 @@ else:
     k[2].metric("괴리", f"{last('gap'):+.1f}배" if last("gap") is not None else "—", help="P/FCF − P/E")
     k[3].metric("FCF 전환율", f"{last('conv') * 100:.0f}%" if last("conv") is not None else "—",
                 help="FCF ÷ 순이익. 100% 아래로 떨어질수록 이익 대비 남는 현금이 적음")
+    lines = valuation_reading(v.get("insight"))
+    if lines:
+        st.markdown("**지금 읽는 법**", help="계산된 수치를 정해진 문장 틀에 넣은 서술입니다(AI 미사용). 좋다·나쁘다 판정이나 투자 권유가 아닙니다.")
+        st.markdown("\n".join(f"- {x}".replace("~", "\\~") for x in lines))  # '~' 두 개가 취소선이 되지 않게
     st.plotly_chart(valuation_chart(v), width="stretch", config={"displayModeBar": False})
+    with st.expander("ⓘ 그래프 읽는 법"):
+        st.markdown(VALUATION_GUIDE)
     st.caption("괴리 = P/FCF − P/E (0보다 위 = 이익보다 FCF가 적음). 마우스를 올리면 FCF 전환율도 보입니다.")
     st.plotly_chart(valuation_gap_chart(v), width="stretch", config={"displayModeBar": False})
     rows = [{

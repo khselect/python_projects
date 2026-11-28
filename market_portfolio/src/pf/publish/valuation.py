@@ -82,6 +82,12 @@ def publish_valuation(source: Source | None = None, fund_client=None, refresh: b
                 "fetched_at": meta.get(t, {}).get("fetched_at"),
             })
         fg = V.group_forward_pe(fwd, members)
+        ins = V.insight(df) if len(df) else None
+        nch = []  # 반영 종목 수가 바뀐 주 — 그래프의 계단 변화가 구성 변화인지 구분
+        if len(w):
+            nn = w["n"].astype(int)
+            for dt, val in nn[nn.ne(nn.shift())].items():
+                nch.append({"date": dt.date().isoformat(), "n": int(val)})
         payload = {
             "schema": 1,
             "group": {"id": g.id, "name": g.name},
@@ -95,10 +101,13 @@ def publish_valuation(source: Source | None = None, fund_client=None, refresh: b
                 "pfcf": [_r(v) for v in w["pfcf"]] if len(w) else [],
                 "gap": [_r(v) for v in w["gap"]] if len(w) else [],
                 "conv": [_r(v, 3) for v in w["conv"]] if len(w) else [],
+                "capex_share": [_r(v, 3) for v in w["capex_share"]] if len(w) and "capex_share" in w else [],
                 "n": [int(v) for v in w["n"]] if len(w) else [],
             },
             "forward_pe": {"dates": [pd.Timestamp(d).date().isoformat() for d in fg.index], "values": [_r(v) for v in fg]},
             "latest": latest,
+            "insight": None if ins is None else {k: (_r(v, 4) if isinstance(v, float) else v) for k, v in ins.items()},
+            "n_changes": nch[1:] if len(nch) > 1 else [],
             "params": {"report_lag_days": cfg["report_lag_days"]},
             "notes": {"forward_error": fwd_note},
         }

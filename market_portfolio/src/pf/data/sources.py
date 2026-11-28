@@ -134,7 +134,9 @@ class SyntheticSource(Source):
         return pd.DataFrame(out, index=days)
 
     def close_and_splits(self, tickers, start="2014-01-01"):
-        return self.prices(tickers, start), {}
+        # 합성 재무(SyntheticFundamentals)는 '최근 주가 100 근처'에 맞춰 P/E 20~40배가 되도록 만들어져 있다 → 마지막 값 100으로
+        px = self.prices(tickers, start)
+        return px / px.iloc[-1] * 100, {}
 
     def forward_snapshot(self, tickers):
         rows = {}
