@@ -14,9 +14,9 @@ HM = {
 def test_group_same_period_comparison_and_rank():
     f = group_year_facts(HM, "2026-11-25")
     assert f[0].startswith("2026년(1~11월, 진행 중·11월은 기준일까지) 그룹 수익률 +24.3%")
-    assert "같은 기간 평균 +11.6%보다 높음" in f[0]
+    assert "같은 기간 평균 +11.6%보다 12.7%p 높음" in f[0]  # 차이도 미리 계산
     assert "11년 중 1위" in f[1]
-    assert any("11월(기준일까지) 그룹 수익률 +2.0%" in x and "높음" in x for x in f)
+    assert any("11월(기준일까지) 그룹 수익률 +2.0%" in x and "1.0%p 높음" in x for x in f)
     assert any("벤치마크보다 수익률이 높았던 해 4/10년" in x for x in f)
 
 
@@ -24,7 +24,7 @@ def test_comparison_numbers_pass_guard_when_copied():
     """모델이 비교 문장을 그대로 옮기면 검증을 통과해야 한다 (추론 없이 답 가능)."""
     f = group_year_facts(HM, "2026-11-25")
     ev = "\n".join(f"- {x}" for x in f)
-    ans = (f"{f[0].split(' — ')[0]}입니다. 과거 10년 같은 기간 평균 +11.6%보다 높고, "
+    ans = (f"{f[0].split(' — ')[0]}입니다. 과거 10년 같은 기간 평균 +11.6%보다 12.7%p 높고, "
            "같은 기간 순위는 11년 중 1위입니다.")
     assert guard.check(ans, ev) == []
 

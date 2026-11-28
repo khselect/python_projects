@@ -223,6 +223,8 @@ def _qa_section(page_path: str, gid: str, t: str | None) -> None:
             note = (f"{h.get('model')} · {h.get('seconds')}초 · 검증 통과" if h["mode"] == "ai"
                     else QA_MODE_NOTE.get(h["mode"], h["mode"]))
             st.caption(f"{h['page']} · {note}")
+            if h["mode"] == "fallback" and h.get("issues"):
+                st.caption("반려 사유: " + "; ".join(h["issues"]))
             if h.get("evidence"):
                 with st.expander("근거 보기"):
                     st.text(h["evidence"])
@@ -241,6 +243,6 @@ def _qa_section(page_path: str, gid: str, t: str | None) -> None:
             st.session_state["qa_used"] = {today: used + 1}
         routed = res.get("routed") or []
         page = d.title + (f" + {', '.join(routed)}" if routed else "")  # 질문 대상 근거를 함께 썼으면 표시
-        hist.append({"q": q, "page": page, **{k: res.get(k) for k in ("mode", "text", "model", "seconds", "evidence")}})
+        hist.append({"q": q, "page": page, **{k: res.get(k) for k in ("mode", "text", "model", "seconds", "evidence", "issues")}})
         st.session_state["qa_hist"] = hist[-10:]
         st.rerun()

@@ -36,6 +36,14 @@ def _cmp_word(x: float, ref: float) -> str:
     return "높음" if x > ref else ("낮음" if x < ref else "같음")
 
 
+def _gap(x: float, ref: float) -> str:
+    """차이까지 미리 계산 — 모델이 '9.2%p 낮다'를 직접 계산하면 근거에 없는 숫자로 반려된다 (11-28 운영)."""
+    # 표시된(반올림된) 두 값의 차이로 — 원값 차이(12.8)와 표시값 차이(24.3−11.6=12.7)가 달라 보이지 않게
+    a, b = round(x * 100, 1), round(ref * 100, 1)
+    d = round(abs(a - b), 1)
+    return "같음" if d == 0 else f"{d:.1f}%p {'높음' if a > b else '낮음'}"
+
+
 def group_year_facts(hm: dict, asof: str, years: int = YEARS) -> list[str]:
     """연도×월 히트맵(그룹 동일가중 월수익률) → 비교 문장."""
     ys, vals = hm.get("years") or [], hm.get("values") or []
@@ -56,7 +64,7 @@ def group_year_facts(hm: dict, asof: str, years: int = YEARS) -> list[str]:
             span = f"1~{m}월" if m > 1 else "1월"
             mtd = f"·{m}월은 기준일까지" if asof and int(asof[5:7]) == m else ""
             out.append(f"{cur_y}년({span}, 진행 중{mtd}) 그룹 수익률 {_p(cur)} — 과거 {len(same)}년"
-                       f"({same[0][0]}~{same[-1][0]}) 같은 기간 평균 {_p(avg)}보다 {_cmp_word(cur, avg)}, 중앙값 {_p(med)}보다 {_cmp_word(cur, med)}")
+                       f"({same[0][0]}~{same[-1][0]}) 같은 기간 평균 {_p(avg)}보다 {_gap(cur, avg)}, 중앙값 {_p(med)}보다 {_gap(cur, med)}")
             allv = sorted(same + [(cur_y, cur)], key=lambda x: x[1], reverse=True)
             rank = [y for y, _ in allv].index(cur_y) + 1
             best, worst = allv[0], allv[-1]
@@ -68,7 +76,7 @@ def group_year_facts(hm: dict, asof: str, years: int = YEARS) -> list[str]:
             if last is not None and len(hist_m) >= 3:
                 am = statistics.mean(hist_m)
                 out.append(f"{cur_y}년 {m}월{'(기준일까지)' if mtd else ''} 그룹 수익률 {_p(last)} — 과거 {len(hist_m)}년 {m}월 평균 "
-                           f"{_p(am)}보다 {_cmp_word(last, am)}, {m}월이 플러스였던 해 {sum(v > 0 for v in hist_m)}/{len(hist_m)}년")
+                           f"{_p(am)}보다 {_gap(last, am)}, {m}월이 플러스였던 해 {sum(v > 0 for v in hist_m)}/{len(hist_m)}년")
     ann, bann = hm.get("annual") or [], hm.get("bench_annual") or []
     full = list(zip(ys, ann, bann or [None] * len(ys)))
     full = full[:-1] if partial else full

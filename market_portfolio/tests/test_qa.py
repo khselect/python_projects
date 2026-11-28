@@ -191,3 +191,18 @@ def test_answer_must_mention_target():
     issues = QA.answer_issues(off, D.text() + SEMIS.text(), ["반도체"])
     assert any(i.startswith("질문 대상(반도체) 언급 없음") for i in issues)
     assert QA.answer_issues("이 화면의 자료로는 답할 수 없습니다. 대신 국면 점수를 보세요.", D.text(), ["반도체"]) == []
+
+
+def test_fallback_picks_question_relevant_facts():
+    """11-28 운영: 두 번 반려 뒤 대체 문장이 매크로 화면 첫 줄(국면 점수)이었음 → 질문과 가까운 반도체 비교 문장을."""
+    llm = Scripted("반도체는 평균보다 9.2%p 낮습니다. 수익률은 42.0%입니다.", "반도체는 평균보다 9.2%p 낮습니다.")
+    r = QA.answer("반도체 산업은 2026년 수익률 비교시 10년 평균보다 높았어?", D, llm, CFG, extra=[SEMIS])
+    assert r["mode"] == "fallback" and r["routed"] == ["group:semis"]
+    assert "2026년(1~11월, 진행 중) 그룹 수익률 +0.6%" in r["text"] and "국면 점수 -1" not in r["text"]
+    assert any("근거에 없는 숫자" in i for i in r["issues"])
+
+
+def test_page_evidence_trimmed_when_target_routed():
+    long_page = Digest("macro", "macro", "II. 매크로 국면", "2026-11-25", [f"사실 {i}" for i in range(20)])
+    ev = QA.evidence(long_page, "반도체는?", extra=[SEMIS])
+    assert "사실 5" in ev and "사실 6" not in ev and ev.index("반도체") < ev.index("II. 매크로")

@@ -35,7 +35,7 @@ SYSTEM = """너는 market.sielain.com 대시보드의 질문 도우미다. 사�
 7. [근거]·[용어] 같은 표시나 목록을 그대로 복사하지 말고, 질문에 맞는 내용만 골라 문장으로 풀어 쓴다.
 8. 서술형 '~입니다'체, 2~5문장, 제목·목록·마크다운 없이 답한다."""
 
-FALLBACK = "검증을 통과한 답을 만들지 못해 이 화면의 근거 일부를 대신 보여드립니다: "
+FALLBACK = "검증을 통과한 답을 만들지 못해 질문과 가까운 근거를 대신 보여드립니다: "
 UNANSWERABLE = "이 화면의 자료로는 답할 수 없습니다"
 
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+")
@@ -118,13 +118,17 @@ def route(question: str, page: Digest) -> list[Digest]:
     return out
 
 
+PAGE_FACTS_WITH_TARGET = 6  # 질문 대상 근거가 따로 있으면 지금 화면 근거는 앞부분만 (근거가 길면 모델이 엉뚱한 줄을 고름)
+
+
 def evidence(d: Digest, question: str, max_chars: int = 3500, extra: list[Digest] | None = None) -> str:
     """질문 대상 근거를 먼저, 지금 화면 근거를 뒤에 (길면 화면 근거 끝부분이 잘린다)."""
     terms = related_terms(question)
     blocks = []
     for x in (extra or []):
         blocks.append(Digest(x.kind, x.key, x.title, x.asof, x.facts, [], x.sources).text())
-    blocks.append(Digest(d.kind, d.key, d.title, d.asof, d.facts, list(dict.fromkeys(terms + d.terms)), d.sources).text())
+    page_facts = d.facts[:PAGE_FACTS_WITH_TARGET] if extra else d.facts
+    blocks.append(Digest(d.kind, d.key, d.title, d.asof, page_facts, list(dict.fromkeys(terms + d.terms)), d.sources).text())
     text = "\n\n".join(blocks)
     return text if len(text) <= max_chars else text[:max_chars]
 
@@ -207,8 +211,32 @@ def _log(rec: dict) -> None:
 
 # ── 답변 ───────────────────────────────────────────────────
 
-def fallback_text(d: Digest) -> str:
-    return FALLBACK + " ".join(f"{x.rstrip('.')}." for x in d.facts[:2])
+_TOKEN = re.compile(r"[가-힣A-Za-z]{2,}|\d{4}")
+_PARTICLES = ("보다", "으로", "에서", "에게", "까지", "부터", "은", "는", "이", "가", "을", "를", "의", "에", "로", "와", "과", "도", "만", "시")
+
+
+def relevant_facts(question: str, digests: list[Digest], k: int = 2) -> list[str]:
+    """질문과 겹치는 낱말이 많은 근거 문장 k개 (동점이면 앞쪽 = 질문 대상 근거 우선)."""
+    qt = set()
+    for t in _TOKEN.findall(question):
+        for suf in _PARTICLES:  # '평균보다'→'평균', '수익률은'→'수익률'
+            if t.endswith(suf) and len(t) - len(suf) >= 2:
+                t = t[: -len(suf)]
+                break
+        qt.add(t)
+    scored = []
+    for i, x in enumerate(f for d in digests for f in d.facts):
+        score = sum(0.5 if t.isdigit() else 1 for t in qt if t in x)  # 연도만 겹친 문장(날짜 등)은 약하게
+        scored.append((-score, i, x))
+    ranked = sorted(scored)
+    top = -ranked[0][0] if ranked else 0
+    best = [x for sc, _, x in ranked if -sc >= max(1, top / 2)][:k]  # 겨우 한 낱말 겹친 문장은 빼기
+    return best or [f for d in digests for f in d.facts][:k]
+
+
+def fallback_text(d: Digest, question: str = "", extra: list[Digest] | None = None) -> str:
+    facts = relevant_facts(question, list(extra or []) + [d]) if question else d.facts[:2]
+    return FALLBACK + " ".join(f"{x.rstrip('.')}." for x in facts)
 
 
 def answer(question: str, d: Digest, client, cfg: dict | None = None, gate: Gate | None = None,
@@ -271,5 +299,6 @@ def answer(question: str, d: Digest, client, cfg: dict | None = None, gate: Gate
                         "근거에 있는 숫자만 그대로 쓰고 다시 답하라.")
     except Busy:
         return done({"mode": "busy", "text": "지금 질문이 많아 대기열이 찼습니다. 잠시 뒤 다시 시도해 주세요."})
-    return done({"mode": "fallback", "text": fallback_text(d), "issues": attempts[-1]["issues"],
+    return done({"mode": "fallback", "text": fallback_text(d, q, extra), "issues": attempts[-1]["issues"],
+                 "routed": [f"{x.kind}:{x.key}" for x in extra],
                  "attempts": attempts, "evidence": ev})
