@@ -127,14 +127,55 @@ VALUATION_GUIDE = """
 """
 
 
+LIKE_LABEL = {"pe": "P/E", "gap": "괴리"}
+
+
+def like_table(hl: dict | None) -> None:
+    """과거 비슷한 수준이었을 때 이후 그룹 수익률 — 서술 통계 (진입 판단·권유 아님)."""
+    if not hl:
+        return
+    st.markdown("**과거 비슷한 수준이었을 때** (서술 통계 · %ile = 그날까지 이력 중 백분위)",
+                help="지금과 비슷한 백분위(±10%p)였던 날들 뒤에 그룹(동일가중)이 어떻게 움직였는지를 전체 기간과 나란히 보여줍니다. "
+                     "백분위는 그날까지의 이력으로만 계산합니다(미래 정보 미사용). 진입·청산 판단이나 권유가 아닙니다.")
+    rows = []
+    for key, h in hl.items():
+        for name, x in (h.get("horizons") or {}).items():
+            if not x:
+                continue
+            b = x["baseline"]
+            badge = x["badge"] + (" · 참고용" if x["reference_only"] else "")
+            rows.append({
+                "기준": f"{LIKE_LABEL.get(key, key)} {h['now_pct'] * 100:.0f}%ile",
+                "기간": name,
+                "그때 이후": f"{x['median'] * 100:+.1f}% · 상승 {x['p_up'] * 100:.0f}%",
+                "90% 구간": f"{x['p5'] * 100:+.0f}~{x['p95'] * 100:+.0f}%",
+                "전체 기간": f"{b['median'] * 100:+.1f}% · 상승 {b['p_up'] * 100:.0f}%",
+                "독립": x["n_indep"],
+                "읽기": badge,
+            })
+    if not rows:
+        return
+    st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch",
+                 column_config={"그때 이후": st.column_config.TextColumn(help="비슷한 백분위였던 날 이후 그룹 수익률 중앙값 · 상승한 비율"),
+                                "독립": st.column_config.NumberColumn(
+                     help="기간이 겹치지 않게 센 표본 수. 20개 미만이면 참고용 — 날짜 수가 많아 보여도 서로 겹쳐 있어 실제 정보량은 이만큼입니다")})
+    first = next((x for h in hl.values() for x in (h.get("horizons") or {}).values() if x), None)
+    st.caption("읽기 = 전체 기간과 비교한 서술입니다: 중앙값이 더 높고 상승 비율이 5%p 이상 높으면 '과거 강세 우위', 반대면 '과거 약세 우위'. "
+               "우상향한 업종은 아무 날이나 골라도 대부분 올랐기 때문에 전체 기간과 비교합니다. "
+               + (f"비교 대상 날짜 {first['first']} ~ {first['last']}. " if first and first.get("first") else "")
+               + "밸류에이션 이력이 짧아(2016년~, 백분위는 2년 이력 이후부터) 독립 구간이 적습니다 — 이 표만으로 진입 시점을 판단하기 어렵다는 것도 정보입니다.")
+
+
 def status_text(r: dict) -> str:
     """종목별 상태 — 데이터 상태와 계산상 주의점 (좋다·나쁘다 판정 아님)."""
     if r.get("missing"):
         return "재무 수집 대기 (하루 20회 한도로 나눠 받는 중)"
     flags = r.get("flags") or []
-    got = (r.get("fetched_at") or "")[:10]
-    base = f"반영 중 · 재무 받은 날 {got}" if got else "반영 중"
-    return " · ".join([base] + flags)
+    got = (r.get("fetched_at") or "")[5:10].replace("-", "/")
+    short = {"순이익 적자 — P/E 계산 안 함": "적자(P/E 없음)", "FCF 음수 — P/FCF 계산 안 함": "FCF 음수(P/FCF 없음)",
+             "FCF가 이익의 절반 미만": "FCF < 이익의 절반", "설비투자가 영업현금의 절반 이상": "설비투자 ≥ 영업현금 절반",
+             "최근 분기 실적 미반영(150일 넘음)": "최근 분기 미반영"}
+    return " · ".join([f"재무 {got}" if got else "반영 중"] + [short.get(f, f) for f in flags])
 
 
 def valuation_reading(ins: dict | None) -> list[str]:
@@ -205,6 +246,7 @@ else:
     st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch",
                  column_config={"상태": st.column_config.TextColumn("상태", width="large",
                                 help="데이터 상태와 계산상 주의점입니다(좋다·나쁘다 판정 아님). 최근 분기 = 지금 배수에 반영된 마지막 분기 말 — 분기 말 45일 뒤부터 반영")})
+    like_table(v.get("history_like"))
     miss = cv["missing"]
     st.caption(
         f":gray-background[참고용] 후행 12개월(TTM) 기준 — 분기 실적은 분기 말 {v['params']['report_lag_days']}일 뒤부터 반영. "

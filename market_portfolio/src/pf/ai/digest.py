@@ -205,6 +205,13 @@ def _valuation_facts(val: dict | None) -> list[str]:
         if ins.get("conv_1y") is not None and ins.get("capex_share") is not None and ins.get("capex_share_1y") is not None:
             out.append(f"1년 전 FCF 전환율 {ins['conv_1y']:.2f}, 설비투자 ÷ 영업현금흐름 {pct(ins['capex_share_1y'], 0).lstrip('+')} → "
                        f"지금 {pct(ins['capex_share'], 0).lstrip('+')}")
+    hl = (val.get("history_like") or {}).get("pe")
+    x = (hl or {}).get("horizons", {}).get("12개월") if hl else None
+    if x:
+        ref = ", 참고용" if x["reference_only"] else ""
+        out.append(f"과거 후행 P/E가 비슷한 백분위였던 날 이후 12개월 그룹 수익률 중앙값 {pct(x['median'])}, 상승 비율 "
+                   f"{round(x['p_up'] * 100):d}%, 90% 구간 {pct(x['p5'])} ~ {pct(x['p95'])} (전체 기간 중앙값 {pct(x['baseline']['median'])}, "
+                   f"독립 구간 {x['n_indep']}개{ref}) — 서술 통계")
     fwd = (val.get("forward_pe") or {}).get("values") or []
     if fwd and fwd[-1] is not None:
         out.append(f"선행 P/E {fwd[-1]:.1f}배")

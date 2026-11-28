@@ -99,6 +99,16 @@ def publish_valuation(source: Source | None = None, fund_client=None, refresh: b
             })
         fg = V.group_forward_pe(fwd, members)
         ins = V.insight(df) if len(df) else None
+        like = {}
+        if len(df) and got:
+            ew = V.equal_weight_index(close[[t for t in got if t in close]].reindex(df.index))
+            for key, col in (("pe", "pe"), ("gap", "gap")):
+                try:
+                    h = V.history_like(df[col], ew)
+                except Exception:
+                    h = None
+                if h:
+                    like[key] = h
         nch = []  # 반영 종목 수가 바뀐 주 — 그래프의 계단 변화가 구성 변화인지 구분
         if len(w):
             nn = w["n"].astype(int)
@@ -123,6 +133,7 @@ def publish_valuation(source: Source | None = None, fund_client=None, refresh: b
             "forward_pe": {"dates": [pd.Timestamp(d).date().isoformat() for d in fg.index], "values": [_r(v) for v in fg]},
             "latest": latest,
             "insight": None if ins is None else {k: (_r(v, 4) if isinstance(v, float) else v) for k, v in ins.items()},
+            "history_like": _round_tree(like),
             "n_changes": nch[1:] if len(nch) > 1 else [],
             "params": {"report_lag_days": cfg["report_lag_days"]},
             "notes": {"forward_error": fwd_note},
@@ -130,6 +141,14 @@ def publish_valuation(source: Source | None = None, fund_client=None, refresh: b
         _write_json(VAL_DIR / f"{g.id}.json", payload, separators=(",", ":"))
         n += 1
     return {"queue": queue, "groups": n, "have": len(have), "total": len(symbols), "forward_error": fwd_note}
+
+
+def _round_tree(x):
+    if isinstance(x, float):
+        return _r(x, 4)
+    if isinstance(x, dict):
+        return {k: _round_tree(v) for k, v in x.items()}
+    return x
 
 
 def load_valuation(group_id: str) -> dict | None:

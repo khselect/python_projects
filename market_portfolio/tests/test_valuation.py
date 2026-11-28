@@ -151,3 +151,27 @@ def test_insight_decomposes_pe_change():
     assert ins["pe"] < ins["pe_1y"] and 0 <= ins["pe_pct"] <= 1
     df.loc[idx[-1], "n"] = 4  # 구성 변화가 있으면 분해 생략
     assert "mcap_chg_1y" not in insight(df)
+
+
+def test_expanding_percentile_has_no_lookahead():
+    from pf.valuation import expanding_pct
+
+    x = pd.Series([1.0, 2, 3, 4, 5, 0.5], index=pd.bdate_range("2024-01-01", periods=6))
+    p = expanding_pct(x, min_hist=3)
+    assert np.isnan(p.iloc[2]) and p.iloc[3] == 1.0 and p.iloc[5] == 0.0  # 그날까지 이력 기준
+
+
+def test_history_like_baseline_relative_and_independent_blocks():
+    from pf.valuation import history_like
+
+    idx = pd.bdate_range("2016-01-01", periods=1500)
+    rng = np.random.default_rng(0)
+    metric = pd.Series(30 + np.cumsum(rng.normal(0, 0.3, 1500)), index=idx)
+    price = pd.Series(np.exp(np.cumsum(rng.normal(0.0004, 0.01, 1500))), index=idx)
+    h = history_like(metric, price)
+    x = h["horizons"]["12개월"]
+    span = (pd.Timestamp(x["last"]) - pd.Timestamp(x["first"])).days * 252 / 365 + 1
+    assert x is not None and 1 <= x["n_indep"] <= min(x["n_days"], span / 252 + 1)  # 겹치는 날짜는 독립 표본이 아님
+    assert x["badge"] in ("과거 강세 우위", "과거 약세 우위", "뚜렷한 차이 없음")
+    assert x["reference_only"] == (x["n_indep"] < 20)
+    assert 0 <= h["now_pct"] <= 1 and "baseline" in x
