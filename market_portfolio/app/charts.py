@@ -111,6 +111,38 @@ def regime_history(dates: list[str], scores: list[int], hi: int = 4, lo: int = -
     return fig
 
 
+def regime_long(h: dict, hi: int = 4, lo: int = -4, rng: int = 10, show_spx: bool = True,
+                default_years: int = 2, height: int = 380) -> go.Figure:
+    """2007년 이후 국면 점수 (주간) — 기간 버튼(2년·5년·10년·전체) + 아래 드래그 스크롤바, 오른쪽 축에 S&P 500.
+    처음에는 최근 default_years년만 보인다. 막대 = 층별 점수, 선 = 합계, 진한 빨강 = 급변 규칙 발동 주."""
+    import pandas as pd
+
+    dates = h["dates"]
+    fig = regime_history(dates, h["score"], hi, lo, height=height, macro=h.get("macro"), market=h.get("market"),
+                         stress=h.get("stress"), rng=rng)
+    if show_spx and h.get("spx"):
+        fig.add_scatter(x=dates, y=h["spx"], mode="lines", name="S&P 500 (오른쪽, 로그)", yaxis="y2",
+                        line=dict(color="#191919", width=1.2), opacity=0.55,
+                        hovertemplate="%{x}<br>S&P 500 %{y:,.0f}<extra></extra>")
+        fig.update_layout(yaxis2=dict(overlaying="y", side="right", type="log", showgrid=False, title="", tickformat=",.0f"))
+    end = pd.Timestamp(dates[-1])
+    start = max(pd.Timestamp(dates[0]), end - pd.DateOffset(years=default_years))
+    fig.update_xaxes(
+        range=[start.date().isoformat(), dates[-1]],
+        rangeslider=dict(visible=True, thickness=0.08),
+        rangeselector=dict(buttons=[
+            dict(count=2, label="2년", step="year", stepmode="backward"),
+            dict(count=5, label="5년", step="year", stepmode="backward"),
+            dict(count=10, label="10년", step="year", stepmode="backward"),
+            dict(step="all", label="전체"),
+        ], x=0, y=1.12, font=dict(size=11)),
+        tickformat="%y.%m",
+    )
+    fig.update_layout(margin=dict(l=8, r=56, t=56, b=8), legend=dict(orientation="h", y=1.12, x=1, xanchor="right"),
+                      bargap=0.05)
+    return fig
+
+
 def _runs(dates: list[str], flags: list[bool]) -> list[tuple[str, str]]:
     runs, start, prev = [], None, None
     for d, f in zip(dates, flags):

@@ -12,7 +12,7 @@ from pf.config import load_model
 from pf.data import store
 from pf.data.fred import INTERNAL_ONLY, NOTICE, SERIES, TERMS_URL, get_fred
 from pf.data.sources import Source, get_source
-from pf.macro.indicators import DEFAULT_MARKET, INDICATORS, LAYER_NAME, MARKET_TICKERS as MKT_LAYER_TICKERS, compute, last_switch, regime_of
+from pf.macro.indicators import SPX, DEFAULT_MARKET, INDICATORS, LAYER_NAME, MARKET_TICKERS as MKT_LAYER_TICKERS, compute, last_switch, regime_of
 from pf.publish.ticker import PUBLISH_DIR, _write_json
 
 MACRO_TICKERS = ["DBC", "RSP", "SPY"]
@@ -155,6 +155,31 @@ def build(df: pd.DataFrame, source_name: str, hi: int = 4, lo: int = -4, prices:
     }
 
 
+def history_path() -> Path:
+    """장기 주간 이력 (macro.json 옆, 실행 시 경로 — 테스트에서 MACRO_PATH를 바꾸면 따라간다)."""
+    return MACRO_PATH.with_name("macro_history.json")
+
+
+def long_history(df: pd.DataFrame, prices: pd.DataFrame | None = None) -> dict:
+    """2007년 이후 주간 국면 점수(층별·급변) + S&P 500 주간 종가 — II 장기 추이 그래프용 (11-28).
+    시장 층 4개가 모두 계산되기 시작한 주부터 (그 전 점수는 매크로 층뿐이라 비교가 안 됨)."""
+    ready = df[[f"raw_{k}" for k in ("vix", "trend", "sectors", "rates")]].notna().all(axis=1) if "raw_vix" in df else None
+    d = df[ready.cummax()] if ready is not None and ready.any() else df
+    wk = d.resample("W-FRI").last().dropna(subset=["score"])
+    out = {
+        "since": wk.index[0].date().isoformat() if len(wk) else None,
+        "dates": [x.date().isoformat() for x in wk.index],
+        "score": [int(v) for v in wk["score"]],
+        "macro": [int(v) for v in wk["score_macro"]],
+        "market": [int(v) for v in wk["score_market"]],
+        "stress": [bool(v == 1) for v in wk.get("stress", pd.Series(0, index=wk.index))],
+    }
+    if prices is not None and SPX in prices:
+        spx = prices[SPX].reindex(d.index.union(prices.index)).ffill().reindex(d.index).resample("W-FRI").last().reindex(wk.index)
+        out["spx"] = [None if pd.isna(v) else round(float(v), 1) for v in spx]
+    return out
+
+
 def long_run(df: pd.DataFrame, hi: int, lo: int, years: int = HISTORY_YEARS) -> dict | None:
     """장기 기준 위치 (2007년 이후, 시장 층 4개가 모두 계산되기 시작한 날부터, 일간).
 
@@ -211,4 +236,8 @@ def publish_macro(source: Source | None = None, fred=None, prices: pd.DataFrame 
                     {**DEFAULT_MARKET, **(cfg.get("market") or {})})
     MACRO_PATH.parent.mkdir(parents=True, exist_ok=True)
     _write_json(MACRO_PATH, payload, separators=(",", ":"))
+    try:  # 장기 이력은 별도 파일 (macro.json을 가볍게 유지)
+        _write_json(history_path(), long_history(df, prices), separators=(",", ":"))
+    except Exception:
+        pass
     return MACRO_PATH

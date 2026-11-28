@@ -84,6 +84,10 @@ def test_publish_macro_offline(tmp_path, monkeypatch, macro_df):
     assert d["score"] == d["layers"]["macro"]["score"] + d["layers"]["market"]["score"]
     h = d["history"]
     assert [a + b for a, b in zip(h["macro"], h["market"])] == h["score"] and len(h["stress"]) == len(h["score"])
+    hl = json.loads(mpub.history_path().read_text(encoding="utf-8"))  # 장기 주간 이력 (별도 파일)
+    assert len(hl["dates"]) >= len(h["dates"]) and len(hl["score"]) == len(hl["dates"]) == len(hl["spx"])
+    assert [a + b for a, b in zip(hl["macro"], hl["market"])] == hl["score"] and hl["dates"][-1] == h["dates"][-1]
+    assert mpub.history_path().parent == mpub.MACRO_PATH.parent
     lg = d["long"]
     assert lg and lg["n_days"] >= 250 and 0 <= lg["riskoff_share"] <= 1 and 0 <= lg["riskoff_share_recent"] <= 1
     credit = next(i for i in d["indicators"] if i["key"] == "credit")

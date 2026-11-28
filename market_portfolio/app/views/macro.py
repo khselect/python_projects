@@ -7,14 +7,20 @@ import json
 import pandas as pd
 import streamlit as st
 
-from charts import market_compare, ratio_chart, regime_history, score_breakdown
+from charts import market_compare, ratio_chart, regime_history, regime_long, score_breakdown
 from common import tip
 from pf.macro.evaluate import load_eval
-from pf.macro.publish import MACRO_PATH
+from pf.macro.publish import MACRO_PATH, history_path
 from pf.synth.rules import fmt_score
 
 SIG = {1.0: "▲ 우호", 0.0: "● 중립", -1.0: "▼ 비우호", None: "— 신호 없음"}
 SIG_COLOR = {"▲ 우호": "#1757ac", "● 중립": "#666666", "▼ 비우호": "#c22b2c", "— 신호 없음": "#999999"}
+
+
+@st.cache_data(ttl=300)
+def _history_long():
+    p = history_path()
+    return json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
 
 
 @st.cache_data(ttl=300)
@@ -133,7 +139,9 @@ with st.expander("ⓘ 지표별 판정 기준"):
         st.markdown(f"**{ind['name']}** — {tip(ind['key'])}")
 
 # ── 2년 추이 ─────────────────────────────────────────────
-st.markdown("**국면 점수 2년 추이** (주간 · 막대 = 층별 점수, 선 = 합계, 진한 빨강 배경 = 급변 규칙 발동 주)")
+st.markdown("**국면 점수 추이** (주간 · 막대 = 층별 점수, 선 = 합계, 진한 빨강 배경 = 급변 규칙 발동 주)",
+            help="위쪽 버튼으로 기간(2년·5년·10년·전체)을 고르고, 아래 막대를 끌어 기간을 옮기거나 양끝을 끌어 넓히고 좁힐 수 있습니다. "
+                 "오른쪽 축 = S&P 500(로그 눈금) — 국면이 바뀔 때 지수가 어떻게 움직였는지 함께 봅니다.")
 lg = d.get("long")
 if lg:
     rr, ra = lg["riskoff_share_recent"], lg["riskoff_share"]
@@ -145,11 +153,18 @@ if lg:
         "주가는 천천히 오르고 빨리 떨어지는 경향이 있어 점수는 장기적으로도 양수 쪽에 더 오래 머뭅니다.",
         help="최근 2년 추이만 보면 음수가 드물어 '늘 안정적'으로 보일 수 있어, 같은 계산으로 2007년 이후 전체와 나란히 보여줍니다")
 h = d["history"]
-st.plotly_chart(
-    regime_history(h["dates"], h["score"], th["expansion"], th["riskoff"], macro=h.get("macro"), market=h.get("market"),
-                   stress=h.get("stress"), rng=rng),
-    width="stretch", config={"displayModeBar": False},
-)
+hl = _history_long()
+if hl and len(hl.get("dates") or []) > len(h["dates"]):
+    spx_on = st.toggle("S&P 500 겹쳐 보기", value=True, key="regime_spx")
+    st.plotly_chart(regime_long(hl, th["expansion"], th["riskoff"], rng=rng, show_spx=spx_on),
+                    width="stretch", config={"displayModeBar": False})
+    st.caption(f"{hl['since'][:4]}년 이후 주간 {len(hl['dates'])}개 · 처음에는 최근 2년 — 버튼이나 아래 스크롤 막대로 기간 이동")
+else:  # 장기 이력이 아직 없으면(배포 직후 배치 전) 2년만
+    st.plotly_chart(
+        regime_history(h["dates"], h["score"], th["expansion"], th["riskoff"], macro=h.get("macro"), market=h.get("market"),
+                       stress=h.get("stress"), rng=rng),
+        width="stretch", config={"displayModeBar": False},
+    )
 # 지수 비교 배경용: 급변 주는 위험회피로
 eff = [th["riskoff"] if st_ else sc for sc, st_ in zip(h["score"], h.get("stress") or [False] * len(h["score"]))]
 
