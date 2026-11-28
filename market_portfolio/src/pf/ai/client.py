@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 import urllib.error
 import urllib.request
@@ -33,6 +34,23 @@ class Reply:
     @property
     def tok_per_s(self) -> float | None:
         return round(self.eval_count / self.seconds, 1) if self.eval_count and self.seconds else None
+
+
+# 생각(추론) 모드가 기본으로 켜지는 모델 — 끄지 않으면 답 앞에 생각 과정이 붙어 느려지고, 그 안의 숫자 때문에 검증에서 떨어진다
+THINKING_FAMILIES = ("qwen3", "deepseek-r1", "qwq")
+_THINK_TAG = re.compile(r"<think>.*?</think>", re.S)
+
+
+def is_thinking_model(model: str) -> bool:
+    return model.lower().startswith(THINKING_FAMILIES)
+
+
+def strip_thinking(text: str) -> str:
+    """생각 모드를 끄지 못한 경우(구버전 Ollama) 대비: <think>…</think> 블록과 닫히지 않은 시작 태그 앞부분 제거."""
+    text = _THINK_TAG.sub("", text)
+    if "<think>" in text:  # 답 길이 한도로 닫는 태그 없이 끊긴 경우 — 답이 없다
+        text = text.split("<think>")[0]
+    return text.strip()
 
 
 class OllamaClient:
@@ -68,15 +86,36 @@ class OllamaClient:
     def chat(self, system: str, user: str, *, num_predict: int = 400, temperature: float = 0.2,
              keep_alive: str | int = "5m", num_ctx: int = 4096) -> Reply:
         t0 = time.perf_counter()
-        d = self._post("/api/chat", {
+        think = is_thinking_model(self.model)
+        payload = {
             "model": self.model,
-            "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+            # qwen3는 메시지 끝 '/no_think'도 생각 모드를 끈다 (구버전 Ollama에서 think 옵션을 무시해도 동작)
+            "messages": [{"role": "system", "content": system},
+                         {"role": "user", "content": user + (" /no_think" if self.model.lower().startswith("qwen3") else "")}],
             "stream": False,
             "keep_alive": keep_alive,
             "options": {"temperature": temperature, "num_predict": num_predict, "num_ctx": num_ctx},
-        }, self.timeout)
-        return Reply(d.get("message", {}).get("content", "").strip(), self.model,
-                     round(time.perf_counter() - t0, 1), d.get("eval_count", 0), d.get("prompt_eval_count", 0))
+        }
+        if think:
+            payload["think"] = False  # Ollama 0.9+ 생각 모드 끄기
+        try:
+            d = self._post("/api/chat", payload, self.timeout)
+        except LLMError as e:
+            if think and "think" in str(e).lower():  # 이 Ollama·모델이 think 옵션을 모르면 옵션 없이 한 번 더
+                payload.pop("think", None)
+                d = self._post("/api/chat", payload, self.timeout)
+            else:
+                raise
+        text = strip_thinking(d.get("message", {}).get("content", ""))
+        return Reply(text, self.model, round(time.perf_counter() - t0, 1), d.get("eval_count", 0), d.get("prompt_eval_count", 0))
+
+    def models(self) -> list[str]:
+        """설치된 모델 이름 (실패하면 빈 목록)."""
+        try:
+            with urllib.request.urlopen(self.host + "/api/tags", timeout=5) as r:
+                return sorted(m["name"] for m in json.loads(r.read()).get("models", []))
+        except Exception:
+            return []
 
     def unload(self) -> None:
         """모델을 메모리에서 즉시 내린다 (12b 미리 생성 뒤, PLAN §8.1)."""
@@ -96,6 +135,12 @@ class FakeLLM:
 
     def available(self) -> tuple[bool, str]:
         return True, "ok"
+
+    def models(self) -> list[str]:
+        from pf.config import load_model
+
+        ai = load_model().get("ai") or {}
+        return list(dict.fromkeys([ai.get("chat_model", "gemma3:4b")] + list(ai.get("chat_models") or [])))
 
     def chat(self, system: str, user: str, **_) -> Reply:
         facts = [l[2:] for l in user.split("[근거]", 1)[-1].split("[용어]", 1)[0].splitlines() if l.startswith("- ")]

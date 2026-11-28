@@ -133,12 +133,24 @@ def _ai_section(page_path: str, gid: str, t: str | None) -> None:
 # ── F20 2단계: 자유 질문 ─────────────────────────────────────
 @st.cache_resource
 def _qa_runtime():
-    """프로세스 하나에 LLM 클라이언트·대기열 하나 (방문자 모두 공유)."""
-    from pf.ai.client import get_client
+    """프로세스 하나에 설정·대기열 하나 (방문자 모두 공유 — 모델이 달라도 Ollama는 한 번에 1건)."""
     from pf.ai.qa import Gate, qa_config
 
     cfg = qa_config()
-    return cfg, get_client(cfg["chat_model"], timeout=cfg["chat_timeout_s"]), Gate(cfg["queue_max"])
+    return cfg, Gate(cfg["queue_max"])
+
+
+@st.cache_resource
+def _qa_client(model: str, timeout: float):
+    from pf.ai.client import get_client
+
+    return get_client(model, timeout=timeout)
+
+
+@st.cache_data(ttl=300)
+def _installed_models(default: str) -> list[str]:
+    c = _qa_client(default, 10)
+    return c.models() if c is not None else []
 
 
 @st.cache_data(ttl=300)
@@ -187,13 +199,22 @@ def _qa_section(page_path: str, gid: str, t: str | None) -> None:
 
     from pf.ai.qa import answer
 
-    cfg, client, gate = _qa_runtime()
+    st.markdown("**질문하기**", help="지금 보는 화면의 수치와 용어 설명만 근거로 로컬 AI(기본 gemma3:4b, 아래에서 모델 선택)가 답합니다. "
+                "답의 숫자·날짜는 근거와 코드로 대조하고, 맞지 않으면 답 대신 근거를 보여줍니다. "
+                "매수·매도·비중·목표가 질문은 AI를 부르지 않고 안내합니다. 개인정보는 입력하지 마세요.")
+    cfg, gate = _qa_runtime()
+    default = cfg["chat_model"]
+    installed = set(_installed_models(default))
+    choices = [m for m in cfg["chat_models"] if m in installed or f"{m}:latest" in installed] or [default]
+    if st.session_state.get("qa_model") not in choices:
+        st.session_state["qa_model"] = default if default in choices else choices[0]
+    model = st.selectbox("답변 모델", choices, key="qa_model",
+                         help="맥미니에 설치된 로컬 모델 중 고릅니다. 같은 근거·검증을 거치므로 모델별로 답과 걸린 시간을 비교해 볼 수 있습니다. "
+                              "qwen3는 생각 모드를 끄고 호출합니다. 기본이 아닌 모델은 5분만 메모리에 머뭅니다.") if len(choices) > 1 else choices[0]
+    client = _qa_client(model, cfg["chat_timeout_s"])
     today = date.today().isoformat()
     used = st.session_state.setdefault("qa_used", {}).get(today, 0)
     hist = st.session_state.setdefault("qa_hist", [])
-    st.markdown("**질문하기**", help="지금 보는 화면의 수치와 용어 설명만 근거로 로컬 AI(gemma3:4b)가 답합니다. "
-                "답의 숫자·날짜는 근거와 코드로 대조하고, 맞지 않으면 답 대신 근거를 보여줍니다. "
-                "매수·매도·비중·목표가 질문은 AI를 부르지 않고 안내합니다. 개인정보는 입력하지 마세요.")
     for h in hist[-3:]:
         with st.chat_message("user"):
             st.markdown(_md(h["q"]))

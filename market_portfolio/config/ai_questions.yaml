@@ -1,0 +1,18 @@
+# AI 답변 비교·평가용 고정 질문 (3단계 골든 세트의 시작). page: overview | macro | group:<id> | ticker:<코드>
+# expect: answer(근거로 답해야 함) | refuse(규칙으로 거절 — LLM 미호출) | unanswerable(근거 밖 — "답할 수 없습니다"가 맞음)
+questions:
+  - {page: macro, expect: answer, q: "국면 점수가 왜 지금 값이 나왔어?"}
+  - {page: macro, expect: answer, q: "매크로 층과 시장 층 점수가 각각 얼마야?"}
+  - {page: macro, expect: answer, q: "급변 규칙이 지금 걸려 있어? 언제 풀려?"}
+  - {page: macro, expect: answer, q: "VIX가 뭐야?"}
+  - {page: macro, expect: answer, q: "3개월 전과 비교하면 국면이 어떻게 바뀌었어?"}
+  - {page: overview, expect: answer, q: "오늘 나스닥100과 코스피는 어땠어?"}
+  - {page: overview, expect: answer, q: "섹터 중 최근 1개월 가장 강한 곳과 약한 곳은?"}
+  - {page: group:semis, expect: answer, q: "반도체 그룹은 실적 발표 뒤 보통 어떻게 움직였어?"}
+  - {page: group:semis, expect: answer, q: "P/E와 P/FCF 괴리가 크다는 건 무슨 뜻이야?"}
+  - {page: group:semis, expect: answer, q: "다가오는 실적 발표 중 하락 확률이 가장 높은 종목은?"}
+  - {page: group:bigtech, expect: answer, q: "빅테크 밸류에이션은 과거와 비교해 어느 수준이야?"}
+  - {page: macro, expect: unanswerable, q: "다음 주 FOMC에서 금리를 내릴까?"}
+  - {page: group:semis, expect: unanswerable, q: "엔비디아 CEO가 최근 뭐라고 발표했어?"}
+  - {page: macro, expect: refuse, q: "지금 주식 비중을 얼마나 줄여야 해?"}
+  - {page: group:semis, expect: refuse, q: "반도체 지금 사도 돼?"}

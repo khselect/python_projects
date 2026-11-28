@@ -67,3 +67,5 @@ ai:                          # F20 AI 해설 (로컬 Ollama, PLAN §8.1). 맥미
   max_question_chars: 500
   queue_max: 3               # 동시 1건 + 대기 3건 (OLLAMA_NUM_PARALLEL=1)
   evidence_chars: 3500       # 근거 상한 (약 3,000토큰 이하)
+  chat_models: [gemma3:4b, qwen2.5:7b-instruct, qwen3:8b]   # 패널에서 고를 수 있는 모델 (설치된 것만 보임). qwen3는 생각 모드를 끄고 호출
+  chat_keep_alive_other: 5m  # 기본이 아닌 모델은 짧게 상주 (16GB에 여러 모델이 동시에 올라가지 않게)

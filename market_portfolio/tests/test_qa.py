@@ -104,3 +104,61 @@ def test_log_redacts_personal_info(qa_dir):
 def test_fake_llm_offline_answer_passes():
     r = QA.answer("국면 점수가 뭐야?", D, FakeLLM(), CFG)
     assert r["mode"] == "ai"
+
+
+def test_thinking_off_for_qwen3_and_strip(monkeypatch):
+    from pf.ai.client import OllamaClient, strip_thinking
+
+    sent = []
+
+    def fake_post(self, path, payload, timeout):
+        sent.append(payload)
+        return {"message": {"content": "<think>내부 생각 123</think>국면 점수는 -1입니다."}, "eval_count": 5}
+
+    monkeypatch.setattr(OllamaClient, "_post", fake_post)
+    r = OllamaClient("qwen3:8b").chat("s", "질문")
+    assert sent[0]["think"] is False and sent[0]["messages"][1]["content"].endswith("/no_think")
+    assert r.text == "국면 점수는 -1입니다."  # 생각 블록 제거
+    OllamaClient("gemma3:4b").chat("s", "질문")
+    assert "think" not in sent[1] and not sent[1]["messages"][1]["content"].endswith("/no_think")
+    assert strip_thinking("<think>끊긴 생각") == ""
+
+
+def test_think_option_unsupported_falls_back(monkeypatch):
+    from pf.ai.client import OllamaClient
+
+    calls = []
+
+    def fake_post(self, path, payload, timeout):
+        calls.append(dict(payload))
+        if "think" in payload:
+            raise LLMError('Ollama HTTP 400: {"error":"registry.ollama.ai/library/qwen3:8b does not support thinking"}')
+        return {"message": {"content": "답"}, "eval_count": 1}
+
+    monkeypatch.setattr(OllamaClient, "_post", fake_post)
+    assert OllamaClient("qwen3:8b").chat("s", "q").text == "답" and len(calls) == 2
+
+
+def test_non_default_model_short_keep_alive():
+    seen = {}
+
+    class Rec(Scripted):
+        model = "qwen3:8b"
+
+        def chat(self, system, user, **kw):
+            seen.update(kw)
+            return Reply(GOOD, self.model, 1.0, 50)
+
+    QA.answer("국면 점수는?", D, Rec(), {**CFG, "chat_model": "gemma3:4b"})
+    assert seen["keep_alive"] == CFG["chat_keep_alive_other"]
+
+
+def test_bench_offline_smoke(tmp_path, monkeypatch):
+    import pf.ai.bench as B
+
+    monkeypatch.setattr(B, "BENCH_DIR", tmp_path / "bench")
+    monkeypatch.setattr(B, "contexts", lambda *a, **k: [D])
+    res = B.run(["fake-a"], n_contexts=1, log=lambda *_: None)
+    r = res["models"]["fake-a"]
+    assert r["pregen_final_pass"] == 1.0 and r["refusal_rule"] is True
+    assert (tmp_path / "bench").glob("*.json") and "fake-a" in B.report(res)

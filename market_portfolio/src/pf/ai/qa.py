@@ -44,7 +44,8 @@ def qa_config() -> dict:
     from pf.ai.pregen import ai_config
 
     d = {"chat_timeout_s": 60, "chat_num_predict": 400, "chat_keep_alive": "30m", "session_daily": 10,
-         "global_daily": 600, "max_question_chars": 500, "queue_max": 3, "evidence_chars": 3500}
+         "global_daily": 600, "max_question_chars": 500, "queue_max": 3, "evidence_chars": 3500,
+         "chat_models": ["gemma3:4b"], "chat_keep_alive_other": "5m"}
     return {**d, **ai_config()}
 
 
@@ -145,7 +146,9 @@ def answer(question: str, d: Digest, client, cfg: dict | None = None, gate: Gate
     q = question.strip()
     now = datetime.now(timezone.utc)
     today = now.date().isoformat()
-    base = {"question": redact(q)[:cfg["max_question_chars"]], "page": f"{d.kind}:{d.key}", "at": now.isoformat(timespec="seconds")}
+    base = {"question": redact(q)[:cfg["max_question_chars"]], "page": f"{d.kind}:{d.key}", "at": now.isoformat(timespec="seconds"),
+            "llm": getattr(client, "model", None)}
+    keep = cfg["chat_keep_alive"] if getattr(client, "model", None) == cfg["chat_model"] else cfg["chat_keep_alive_other"]
 
     def done(res: dict) -> dict:
         res["seconds"] = round(time.perf_counter() - t0, 1)
@@ -175,7 +178,7 @@ def answer(question: str, d: Digest, client, cfg: dict | None = None, gate: Gate
                 try:
                     r = client.chat(SYSTEM, user, num_predict=cfg["chat_num_predict"],
                                     temperature=cfg["temperature"] if i == 0 else 0.0,
-                                    keep_alive=cfg["chat_keep_alive"])
+                                    keep_alive=keep)
                 except LLMError as e:
                     attempts.append({"error": str(e)})
                     return done({"mode": "error", "text": "지금 AI에 연결할 수 없습니다. 잠시 뒤 다시 시도해 주세요.",

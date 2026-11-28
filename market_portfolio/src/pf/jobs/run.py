@@ -8,6 +8,7 @@
   python -m pf.jobs.run record AVGO                          실적 전 예측 기록 보관
   python -m pf.jobs.run show AVGO                            게시 JSON 요약 출력 (digest)
   python -m pf.jobs.run ai [--show semis]                    AI 해설 미리 생성만 (Ollama, 오프라인은 가짜 LLM)
+  python -m pf.jobs.run ai-bench --models a,b [--contexts 6] 로컬 모델 비교 (같은 근거·검증, 통과율·시간)
 
 컨테이너: docker compose exec market-app python -m pf.jobs.run publish --group semis
 """
@@ -219,10 +220,18 @@ def main(argv=None) -> int:
     r.add_argument("ticker")
     s = sub.add_parser("show")
     s.add_argument("ticker")
+    ab = sub.add_parser("ai-bench")
+    ab.add_argument("--models", default="gemma3:4b,qwen2.5:7b-instruct,qwen3:8b")
+    ab.add_argument("--contexts", type=int, default=6, help="비교할 해설 근거 수 (많을수록 오래 걸림)")
     ai = sub.add_parser("ai")
     ai.add_argument("--show", help="해설 1건 출력 (macro, 그룹 id, 종목 코드)")
     a = ap.parse_args(argv)
 
+    if a.cmd == "ai-bench":
+        from pf.ai.bench import report, run
+
+        print(report(run([m.strip() for m in a.models.split(",") if m.strip()], a.contexts)))
+        return 0
     if a.cmd == "ai":
         if a.show:
             return show_ai(a.show)
