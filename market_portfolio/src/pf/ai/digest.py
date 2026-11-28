@@ -240,8 +240,10 @@ def group_digest(group: dict, valuation: dict | None = None, macro: dict | None 
     if hm.get("annual"):
         y, a = hm["years"][-1], hm["annual"][-1]
         b = (hm.get("bench_annual") or [None])[-1]
-        part = " (연중)" if hm.get("partial_last_year") else ""
-        facts.append(f"{y}년{part} 그룹 동일가중 수익률 {pct(a)}" + (f", 벤치마크 {pct(b)}" if b is not None else ""))
+        if hm.get("partial_last_year"):  # 진행 중인 해 — 연간 평균과 나란히 놓이지 않게 '연초 이후'로 (11-28 운영)
+            facts.append(f"{y}년 연초 이후(진행 중) 그룹 동일가중 수익률 {pct(a)}" + (f", 같은 기간 벤치마크 {pct(b)}" if b is not None else ""))
+        else:
+            facts.append(f"{y}년 그룹 동일가중 수익률 {pct(a)}" + (f", 벤치마크 {pct(b)}" if b is not None else ""))
     if hm:
         facts += group_year_facts(hm, group.get("asof", ""))  # 비교 문장 (코드 계산: 같은 기간 평균·순위·벤치마크)
     for u in (group.get("upcoming") or [])[:3]:

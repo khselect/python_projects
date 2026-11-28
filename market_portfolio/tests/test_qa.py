@@ -217,3 +217,24 @@ def test_user_message_ends_with_answer_instruction():
     assert first.count("[질문] 국면 점수가 뭐야?") == 2
     assert QA.ANSWER_TAIL in llm.calls[1] and "근거 형식을 그대로 복사함" in llm.calls[1]
     assert r["mode"] == "ai" and r["attempts"][0]["text"].startswith("[근거]")  # 반려된 원문도 기록
+
+
+SEMIS_REAL = Digest("group", "semis", "IV. 그룹 상세 — 반도체", "2026-11-27", [
+    "2026년 연초 이후(진행 중) 그룹 동일가중 수익률 +42.0%, 같은 기간 벤치마크 +33.8%",
+    "2026년(1~11월, 진행 중·11월은 기준일까지) 그룹 수익률 +42.0% — 과거 10년(2016~2025) 같은 기간 평균 +51.2%보다 9.2%p 낮음",
+    "과거 10년(2016~2025) 연간 수익률 평균 +57.3%, 중앙값 +68.6%, 플러스였던 해 9/10년 (1~12월 전체 기준 — 진행 중인 2026년과는 같은 기간 문장으로 비교)",
+])
+
+
+def test_ytd_vs_full_year_average_rejected():
+    """11-28 운영 답: 둘째 문장이 진행 중인 2026년(+42.0%)을 1~12월 전체 연간 평균(+57.3%)과 비교."""
+    ev = SEMIS_REAL.text()
+    bad = ("반도체 그룹의 2026년 1~11월 수익률은 +42.0%로 같은 기간 평균 +51.2%보다 9.2%p 낮습니다. "
+           "2026년 연중 수익률도 +42.0%로 10년 평균 +57.3%보다 낮습니다.")
+    good = "반도체 그룹의 2026년 1~11월 수익률은 +42.0%로, 과거 10년 같은 기간 평균 +51.2%보다 9.2%p 낮습니다."
+    assert QA.ytd_annual_mix(bad, ev) and not QA.ytd_annual_mix(good, ev)
+    assert any("1~12월 전체 연간 평균과 비교" in i for i in QA.answer_issues(bad, ev, ["반도체"]))
+    assert QA.answer_issues(good, ev, ["반도체"]) == []
+    # 연간 평균만 따로 말하는 문장은 괜찮다
+    ok = good + " 참고로 과거 10년 1~12월 전체 연간 평균은 +57.3%입니다."
+    assert not QA.ytd_annual_mix(ok, ev)

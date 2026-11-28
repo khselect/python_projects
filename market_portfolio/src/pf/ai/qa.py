@@ -143,6 +143,31 @@ def evidence(d: Digest, question: str, max_chars: int = 3500, extra: list[Digest
 
 
 _MARKERS = ("[근거]", "[용어]", "[화면]", "[질문]")
+_PCT = re.compile(r"[+\-−]?\d+(?:\.\d+)?(?=%)")
+_SENT = re.compile(r"(?<=[.!?])\s+|(?<=다\.)|\n")
+
+
+def _pcts(text: str) -> set[float]:
+    return {abs(float(x.replace("−", "-"))) for x in _PCT.findall(text)}
+
+
+def ytd_annual_mix(answer: str, evidence: str) -> bool:
+    """진행 중인 해(연초 이후) 수익률과 과거 '1~12월 전체' 연간 평균을 한 문장에서 맞대면 True.
+    11-28 운영: '2026년 연중 +42.0%로 10년 평균 +57.3%보다 낮습니다' — 숫자는 근거에 있지만 기간이 다른 비교."""
+    ytd, annual = set(), set()
+    for line in evidence.splitlines():
+        if "연초 이후(진행 중)" in line and (m := _PCT.search(line)):  # 그 줄의 첫 % = 올해 그룹 수익률
+            ytd.add(abs(float(m.group(0).replace("−", "-"))))
+        if "1~12월 전체 기준" in line:
+            annual |= _pcts(line)
+    if not ytd or not annual:
+        return False
+    near = lambda v, ss: any(abs(v - x) <= 0.051 for x in ss)  # noqa: E731
+    for sent in _SENT.split(answer):
+        nums = _pcts(sent)
+        if any(near(v, ytd) for v in nums) and any(near(v, annual) and not near(v, ytd) for v in nums):
+            return True
+    return False
 
 
 def answer_issues(text: str, allowed_text: str, names: list[str]) -> list[str]:
@@ -154,6 +179,8 @@ def answer_issues(text: str, allowed_text: str, names: list[str]) -> list[str]:
         issues.append("근거 형식을 그대로 복사함 — 질문에 맞는 내용만 문장으로")
     if names and not any(n in text for n in names):
         issues.append(f"질문 대상({names[0]}) 언급 없음")
+    if ytd_annual_mix(text, allowed_text):
+        issues.append("진행 중인 해를 1~12월 전체 연간 평균과 비교함 — 같은 기간 문장으로")
     return issues
 
 

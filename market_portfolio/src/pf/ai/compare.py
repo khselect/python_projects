@@ -83,8 +83,9 @@ def group_year_facts(hm: dict, asof: str, years: int = YEARS) -> list[str]:
     full = [x for x in full if x[1] is not None][-years:]
     if len(full) >= 3:
         av = [a for _, a, _ in full]
+        note = f" (1~12월 전체 기준 — 진행 중인 {ys[-1]}년과는 같은 기간 문장으로 비교)" if partial else ""
         out.append(f"과거 {len(full)}년({full[0][0]}~{full[-1][0]}) 연간 수익률 평균 {_p(statistics.mean(av))}, "
-                   f"중앙값 {_p(statistics.median(av))}, 플러스였던 해 {sum(a > 0 for a in av)}/{len(av)}년")
+                   f"중앙값 {_p(statistics.median(av))}, 플러스였던 해 {sum(a > 0 for a in av)}/{len(av)}년{note}")
         beat = [(y, a, b) for y, a, b in full if b is not None]
         if beat:
             out.append(f"같은 {len(beat)}년 중 벤치마크보다 수익률이 높았던 해 {sum(a > b for _, a, b in beat)}/{len(beat)}년")
