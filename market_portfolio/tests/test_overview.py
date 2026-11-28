@@ -104,3 +104,26 @@ def test_eval_reports_immediate_vs_hysteresis():
     vi, v10 = res["variants"]["v10i"], res["variants"]["v10"]
     assert vi["detected"] == v10["detected"] == 1
     assert v10["riskoff_share"] > vi["riskoff_share"]
+
+
+def test_overlapping_episodes_merge():
+    """52주 창이 밀리며 같은 약세장이 두 구간으로 갈리던 문제 (2022-01·2022-03 고점, v0.22)."""
+    idx = pd.bdate_range("2021-01-01", periods=700)
+    v = np.r_[np.linspace(100, 120, 250), np.linspace(120, 100, 40), np.linspace(100, 118, 30),  # 고점 120, 소폭 하락 뒤 118
+              np.linspace(118, 90, 150),   # 약세장 (−25%)
+              np.linspace(90, 107, 80),    # 반등 (52주 고점이 118로 바뀜 → −10% 위로)
+              np.linspace(107, 98, 60),    # 재하락 (118 대비 −17%)
+              np.linspace(98, 130, 90)]
+    eps = episodes(pd.Series(v, index=idx))
+    assert len(eps) == 1 and abs(eps[0]["depth"] + 0.25) < 0.01
+
+
+def test_false_riskoff_share():
+    idx = pd.bdate_range("2020-01-01", periods=400)
+    px = pd.Series(np.r_[np.linspace(100, 120, 100), np.linspace(120, 90, 60), np.linspace(90, 130, 240)], index=idx)
+    df = pd.DataFrame(0.0, index=idx, columns=["score_macro", "score", "score_market", "stress", "stress_entry",
+                                               "raw_vix", "raw_trend", "raw_sectors", "raw_rates"])
+    df.loc[idx[120]:idx[159], "score"] = -5   # 하락 구간 안 40일
+    df.loc[idx[300]:idx[339], "score"] = -5   # 구간 밖 40일 (헛 위험회피)
+    v = evaluate(df, px, 4, -4)["variants"]["v10"]
+    assert v["false_riskoff_share"] == round(40 / 400, 3) and v["riskoff_in_episodes"] > 0.4

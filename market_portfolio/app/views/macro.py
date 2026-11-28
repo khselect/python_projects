@@ -165,7 +165,15 @@ if ev:
                     delta_color="off", delta_arrow="off",
                     help="위험회피로 들어갔는데 이후 63거래일 최대 낙폭이 −7%보다 얕았던 횟수")
         k[3].metric("위험회피 비중", f"{v10['riskoff_share']:.0%}", cmp("riskoff_share", lambda x: f"{x:.0%}"),
-                    delta_color="off", delta_arrow="off")
+                    delta_color="off", delta_arrow="off", help="전체 기간 중 위험회피(점수 ≤ 하단 또는 급변)였던 날의 비율")
+        if "false_riskoff_share" in v10:
+            k2 = st.columns(4)
+            k2[0].metric("헛 위험회피 일수", f"{v10['false_riskoff_share']:.0%}", cmp("false_riskoff_share", lambda x: f"{x:.0%}"),
+                         delta_color="off", delta_arrow="off",
+                         help="하락 구간(고점 30일 전 ~ 저점) 밖에서 위험회피였던 날의 비율. 오경보 횟수는 진입만 세므로, "
+                              "오래 머무는 설계의 비용은 이 값으로 봅니다")
+            k2[1].metric("하락 구간 중 위험회피", f"{v10['riskoff_in_episodes']:.0%}", cmp("riskoff_in_episodes", lambda x: f"{x:.0%}"),
+                         delta_color="off", delta_arrow="off", help="하락 구간(고점 30일 전 ~ 저점) 날 중 위험회피였던 비율 — 높을수록 하락을 오래 잡고 있음")
 
         def cell(r):
             if r["detected"] is None:

@@ -57,10 +57,12 @@ def episodes(px: pd.Series, depth: float = EPISODE_DD, window: int = 252) -> lis
         seg = px.iloc[i:j + 1]
         trough = seg.idxmin()
         d = float(px[trough] / px[peak] - 1)
-        if out and out[-1]["peak"] == peak:  # 같은 고점에서 다시 빠진 구간은 합친다
+        # 같은 고점에서 다시 빠졌거나, 새 고점이 앞 구간 저점보다 이르면(52주 창이 밀리며 생긴 겹침,
+        # 예: 2022-01 약세장 속 2022-03 고점 → 2023-03 재하락) 같은 하락으로 보고 합친다 (v0.22)
+        if out and (out[-1]["peak"] == peak or peak <= out[-1]["trough"]):
             e = out[-1]
             if px[trough] < px[e["trough"]]:
-                e["trough"], e["depth"] = trough, d
+                e["trough"], e["depth"] = trough, float(px[trough] / px[e["peak"]] - 1)
             e["recovered"] = j < n - 1
         elif d <= depth:
             out.append({"peak": peak, "confirm10": idx[i], "trough": trough, "depth": d, "recovered": j < n - 1})
@@ -105,6 +107,9 @@ def score_variant(df: pd.DataFrame, px: pd.Series, eps: list[dict], variant: str
         if mdd > FA_DD:
             fa.append({"date": d.date().isoformat(), "fwd_mdd": round(mdd, 4)})
     years = max((px.index[-1] - px.index[0]).days / 365.25, 1e-9)
+    # 헛 위험회피 일수: 하락 구간(고점 30일 전 ~ 저점) 밖에서 위험회피였던 날의 비율.
+    # 오경보 '횟수'는 위험회피 진입만 세므로, 오래 머무는 설계(히스테리시스)가 유리하게 보인다 → 기간으로도 본다.
+    false_days = ro & ~in_ep
     lags = [r["lag_from_peak"] for r in rows if r["lag_from_peak"] is not None and not r["already_on"]]
     vs = [r["vs_confirm10"] for r in rows if r["vs_confirm10"] is not None and not r["already_on"]]
     return {
@@ -118,6 +123,8 @@ def score_variant(df: pd.DataFrame, px: pd.Series, eps: list[dict], variant: str
         "false_alarms_per_year": round(len(fa) / years, 2),
         "false_alarm_dates": fa[-10:],
         "riskoff_share": round(float(ro.mean()), 3),
+        "false_riskoff_share": round(float(false_days.mean()), 3),
+        "riskoff_in_episodes": round(float((ro & in_ep).sum() / max(in_ep.sum(), 1)), 3),
     }
 
 
@@ -168,7 +175,8 @@ def report(res: dict) -> str:
     for v in vs.values():
         lines.append(f"- {v['name']}: 탐지 {v['detected']}/{v['detected'] + v['missed']} (고점 전부터 {v['already_on']}), 고점→탐지 중앙 {v['median_lag_from_peak']}거래일, "
                      f"−10% 도달일 대비 중앙 {v['median_vs_confirm10']}일, 오경보 {v['false_alarms']}회({v['false_alarms_per_year']}/년), "
-                     f"위험회피 비중 {v['riskoff_share']:.0%}")
+                     f"위험회피 비중 {v['riskoff_share']:.0%} (하락 구간 밖 {v.get('false_riskoff_share', 0):.0%}, "
+                     f"하락 구간 중 {v.get('riskoff_in_episodes', 0):.0%})")
     lines.append(res.get("note", ""))
     return "\n".join(lines)
 
