@@ -162,3 +162,32 @@ def test_bench_offline_smoke(tmp_path, monkeypatch):
     r = res["models"]["fake-a"]
     assert r["pregen_final_pass"] == 1.0 and r["refusal_rule"] is True
     assert (tmp_path / "bench").glob("*.json") and "fake-a" in B.report(res)
+
+
+def test_targets_groups_tickers_aliases():
+    t = {(k, key) for k, key, _ in QA.targets("반도체 산업은 2026년 수익률 비교시 10년 평균보다 높았어?")}
+    assert t == {("group", "semis")}
+    assert ("ticker", "NVDA") in {(k, key) for k, key, _ in QA.targets("엔비디아 실적 반응은?")}
+    assert QA.targets("국면 점수는?") == []
+
+
+SEMIS = Digest("group", "semis", "IV. 그룹 상세 — 반도체", "2026-11-25",
+               ["2026년(1~11월, 진행 중) 그룹 수익률 +0.6% — 과거 10년 같은 기간 평균 +15.5%보다 낮음"])
+
+
+def test_routed_evidence_first_and_copied_format_rejected():
+    """11-28 운영: II 화면에서 반도체를 물었더니 근거에 반도체가 없고, 모델이 [근거] 줄을 복사한 답이 검증을 통과."""
+    bad = "[근거] 2026-11-25 기준, [시장 층] VIX 28.3\n[용어] 국면 점수: 10개 지표의 합"
+    good = "반도체 그룹의 2026년(1~11월, 진행 중) 수익률은 +0.6%로, 과거 10년 같은 기간 평균 +15.5%보다 낮습니다."
+    llm = Scripted(bad, good)
+    r = QA.answer("반도체 산업은 2026년 수익률 비교시 10년 평균보다 높았어?", D, llm, CFG, extra=[SEMIS])
+    assert r["mode"] == "ai" and r["text"] == good and r["routed"] == ["group:semis"]
+    assert llm.calls[0].index("반도체") < llm.calls[0].index("II. 매크로 국면")  # 질문 대상 근거가 먼저
+    assert "근거 형식을 그대로 복사함" in llm.calls[1]
+
+
+def test_answer_must_mention_target():
+    off = "VIX는 28.3으로 최근 1개월 최고 35.9보다 낮습니다. 국면 점수는 -1입니다."
+    issues = QA.answer_issues(off, D.text() + SEMIS.text(), ["반도체"])
+    assert any(i.startswith("질문 대상(반도체) 언급 없음") for i in issues)
+    assert QA.answer_issues("이 화면의 자료로는 답할 수 없습니다. 대신 국면 점수를 보세요.", D.text(), ["반도체"]) == []

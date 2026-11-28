@@ -239,6 +239,8 @@ def _qa_section(page_path: str, gid: str, t: str | None) -> None:
             res = answer(q, d, client, cfg, gate)
         if res["mode"] in ("ai", "fallback"):
             st.session_state["qa_used"] = {today: used + 1}
-        hist.append({"q": q, "page": d.title, **{k: res.get(k) for k in ("mode", "text", "model", "seconds", "evidence")}})
+        routed = res.get("routed") or []
+        page = d.title + (f" + {', '.join(routed)}" if routed else "")  # 질문 대상 근거를 함께 썼으면 표시
+        hist.append({"q": q, "page": page, **{k: res.get(k) for k in ("mode", "text", "model", "seconds", "evidence")}})
         st.session_state["qa_hist"] = hist[-10:]
         st.rerun()

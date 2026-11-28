@@ -31,7 +31,9 @@ SYSTEM = """너는 market.sielain.com 대시보드의 질문 도우미다. 사�
 3. 뉴스·사건·전망·원인을 지어내지 않는다.
 4. 투자 행동(매수·매도·비중·목표가)을 권하지 않는다. 명령형 표현과 '반드시', '확실히', '보장'을 쓰지 않는다.
 5. 확률이나 기대값을 말하면 손실 쪽 숫자(90% 구간 하단 등)가 근거에 있을 때 함께 말한다.
-6. 서술형 '~입니다'체, 2~5문장, 제목·목록·마크다운 없이 답한다."""
+6. 질문이 특정 그룹·종목을 물으면 [근거]에서 그 그룹·종목의 문장을 써서 답하고, 답에 그 이름을 쓴다.
+7. [근거]·[용어] 같은 표시나 목록을 그대로 복사하지 말고, 질문에 맞는 내용만 골라 문장으로 풀어 쓴다.
+8. 서술형 '~입니다'체, 2~5문장, 제목·목록·마크다운 없이 답한다."""
 
 FALLBACK = "검증을 통과한 답을 만들지 못해 이 화면의 근거 일부를 대신 보여드립니다: "
 UNANSWERABLE = "이 화면의 자료로는 답할 수 없습니다"
@@ -64,11 +66,82 @@ def related_terms(question: str, limit: int = 4) -> list[str]:
     return hits[:limit]
 
 
-def evidence(d: Digest, question: str, max_chars: int = 3500) -> str:
+# 질문 속 한글 회사 이름 → 종목 코드 (커버리지 안만)
+TICKER_ALIAS = {
+    "엔비디아": "NVDA", "브로드컴": "AVGO", "마이크론": "MU", "퀄컴": "QCOM", "애플": "AAPL",
+    "마이크로소프트": "MSFT", "마소": "MSFT", "구글": "GOOGL", "알파벳": "GOOGL", "아마존": "AMZN",
+    "메타": "META", "넷플릭스": "NFLX", "테슬라": "TSLA",
+}
+
+
+def targets(question: str) -> list[tuple[str, str, list[str]]]:
+    """질문이 가리키는 그룹·종목 → [(kind, key, 답에 나와야 할 이름들)]. 그룹 이름은 '·'로 나뉜 부분도 인식."""
+    from pf.config import load_coverage
+
+    cov = load_coverage()
+    q = question.replace(" ", "")
+    qu = question.upper()
+    out = []
+    for g in cov.groups:
+        parts = [g.name.replace(" ", "")] + [x for x in g.name.replace(" ", "").split("·") if len(x) >= 2]
+        if any(x and x in q for x in parts):
+            out.append(("group", g.id, [g.name] + parts[1:]))
+    codes = {t for t in cov.tickers if re.search(rf"(?<![A-Z]){t}(?![A-Z])", qu)}
+    codes |= {c for k, c in TICKER_ALIAS.items() if k in q and c in cov.tickers}
+    names = {c: [c] + [k for k, v in TICKER_ALIAS.items() if v == c] for c in codes}
+    out += [("ticker", c, names[c]) for c in sorted(codes)]
+    return out
+
+
+def route(question: str, page: Digest) -> list[Digest]:
+    """질문 대상의 근거(지금 화면과 다르면). 매크로 화면에서 '반도체'를 물어도 반도체 근거가 들어가게 (11-28)."""
+    import json as _json
+
+    import pf.macro.publish as mpub
+    from pf.ai.digest import group_digest, ticker_digest
+    from pf.publish.group import load_group
+    from pf.publish.ticker import load_published
+    from pf.publish.valuation import load_valuation
+
+    macro = _json.loads(mpub.MACRO_PATH.read_text(encoding="utf-8")) if mpub.MACRO_PATH.exists() else None
+    out = []
+    for kind, key, _ in targets(question)[:2]:
+        if (kind, key) == (page.kind, page.key):
+            continue
+        try:
+            if kind == "group" and (g := load_group(key)):
+                out.append(group_digest(g, load_valuation(key), macro))
+            elif kind == "ticker" and (t := load_published(key)):
+                out.append(ticker_digest(t, load_group(t["group"]["id"]), macro))
+        except Exception:
+            continue
+    return out
+
+
+def evidence(d: Digest, question: str, max_chars: int = 3500, extra: list[Digest] | None = None) -> str:
+    """질문 대상 근거를 먼저, 지금 화면 근거를 뒤에 (길면 화면 근거 끝부분이 잘린다)."""
     terms = related_terms(question)
-    base = Digest(d.kind, d.key, d.title, d.asof, d.facts, list(dict.fromkeys(terms + d.terms)), d.sources)
-    text = base.text()
+    blocks = []
+    for x in (extra or []):
+        blocks.append(Digest(x.kind, x.key, x.title, x.asof, x.facts, [], x.sources).text())
+    blocks.append(Digest(d.kind, d.key, d.title, d.asof, d.facts, list(dict.fromkeys(terms + d.terms)), d.sources).text())
+    text = "\n\n".join(blocks)
     return text if len(text) <= max_chars else text[:max_chars]
+
+
+_MARKERS = ("[근거]", "[용어]", "[화면]", "[질문]")
+
+
+def answer_issues(text: str, allowed_text: str, names: list[str]) -> list[str]:
+    """숫자 검증(guard) + 질문 답변용 형식·대상 검사."""
+    issues = guard.check(text, allowed_text)
+    if UNANSWERABLE in text:
+        return [i for i in issues if i != "너무 짧음"]
+    if any(m in text for m in _MARKERS) or any(ln.lstrip().startswith(("- ", "* ")) for ln in text.splitlines()):
+        issues.append("근거 형식을 그대로 복사함 — 질문에 맞는 내용만 문장으로")
+    if names and not any(n in text for n in names):
+        issues.append(f"질문 대상({names[0]}) 언급 없음")
+    return issues
 
 
 # ── 한도: 세션(화면 쪽), 전체 하루, 동시 1건 + 대기열 ────────────
@@ -139,7 +212,7 @@ def fallback_text(d: Digest) -> str:
 
 
 def answer(question: str, d: Digest, client, cfg: dict | None = None, gate: Gate | None = None,
-           log: bool = True) -> dict:
+           log: bool = True, extra: list[Digest] | None = None) -> dict:
     """반환: {mode: ai|refused|fallback|limit|busy|error, text, seconds, issues, model, evidence}"""
     cfg = cfg or qa_config()
     t0 = time.perf_counter()
@@ -167,7 +240,13 @@ def answer(question: str, d: Digest, client, cfg: dict | None = None, gate: Gate
     if client is None:
         return done({"mode": "error", "text": "AI 해설이 꺼져 있습니다."})
 
-    ev = evidence(d, q, cfg["evidence_chars"])
+    if extra is None:
+        try:
+            extra = route(q, d)
+        except Exception:
+            extra = []
+    names = [n for _, _, ns in targets(q) for n in ns]
+    ev = evidence(d, q, cfg["evidence_chars"], extra)
     allowed_text = ev + "\n" + q  # 질문에 나온 숫자를 되받아 쓰는 것은 허용
     user = f"{ev}\n\n[질문] {q}"
     attempts = []
@@ -183,12 +262,11 @@ def answer(question: str, d: Digest, client, cfg: dict | None = None, gate: Gate
                     attempts.append({"error": str(e)})
                     return done({"mode": "error", "text": "지금 AI에 연결할 수 없습니다. 잠시 뒤 다시 시도해 주세요.",
                                  "issues": [str(e)], "attempts": attempts, "evidence": ev})
-                issues = guard.check(r.text, allowed_text)
-                if UNANSWERABLE in r.text:
-                    issues = [i for i in issues if i != "너무 짧음"]
+                issues = answer_issues(r.text, allowed_text, names)
                 attempts.append({"issues": issues, "seconds": r.seconds, "tokens": r.eval_count})
                 if not issues:
-                    return done({"mode": "ai", "text": r.text, "model": r.model, "attempts": attempts, "evidence": ev})
+                    return done({"mode": "ai", "text": r.text, "model": r.model, "attempts": attempts, "evidence": ev,
+                                 "routed": [f"{x.kind}:{x.key}" for x in extra]})
                 user = (f"{ev}\n\n[질문] {q}\n\n직전 답변은 다음 문제로 반려되었다: {'; '.join(issues)}. "
                         "근거에 있는 숫자만 그대로 쓰고 다시 답하라.")
     except Busy:
