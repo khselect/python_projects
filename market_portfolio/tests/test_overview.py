@@ -1,4 +1,4 @@
-"""⓪ 시장 개요 (market_monitor 패널 4개)와 국면 점수 검증 (v0.21)."""
+"""I. 시장 개요 (market_monitor 패널 4개)와 국면 점수 검증 (v0.21)."""
 
 import numpy as np
 import pandas as pd
@@ -44,7 +44,7 @@ def test_build_overview_offline():
 
 
 def test_synthetic_prices_same_regardless_of_start():
-    """⓪(2년)과 ①(2007~)이 같은 종목에서 같은 값을 보이도록 합성 경로는 시작일과 무관해야 한다."""
+    """I(2년)과 II(2007~)이 같은 종목에서 같은 값을 보이도록 합성 경로는 시작일과 무관해야 한다."""
     a = SyntheticSource().prices(["^VIX", "^GSPC"], start="2024-01-01")
     b = SyntheticSource().prices(["^VIX", "^GSPC"], start="2012-01-01")
     assert np.allclose(a.iloc[-5:].to_numpy(), b.iloc[-5:].to_numpy())

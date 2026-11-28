@@ -1,4 +1,4 @@
-"""market.sielain.com 진입점. 화면 순서는 탑다운: ⓪ 시장 개요 → ① 매크로 → ② 캘린더 → ③ 그룹 → ④ 종목.
+"""market.sielain.com 진입점. 화면 순서는 탑다운: I. 시장 개요 → II. 매크로 → III. 캘린더 → IV. 그룹 → V. 종목.
 
 세로 3분할: 왼쪽 사이드바(메뉴·관심 그룹) | 가운데 화면 | 오른쪽 종합 인사이트 패널(항상 표시, 스크롤 고정).
 패널은 화면보다 먼저 그린다(화면의 st.stop()에 영향받지 않게). 위젯 선택값은 다시 실행되기 전에
@@ -15,11 +15,11 @@ from panel import render as render_panel
 st.set_page_config(page_title="Portfolio · 실적 반응", page_icon="📈", layout="wide")
 
 pages = [
-    st.Page("views/overview.py", title="⓪ 시장 개요", url_path="overview", default=True),
-    st.Page("views/macro.py", title="① 매크로 국면", url_path="macro"),
-    st.Page("views/calendar.py", title="② 실적 캘린더", url_path="calendar"),
-    st.Page("views/group.py", title="③ 그룹 상세", url_path="group"),
-    st.Page("views/ticker.py", title="④ 종목 상세", url_path="ticker"),
+    st.Page("views/overview.py", title="I. 시장 개요", url_path="overview", default=True),
+    st.Page("views/macro.py", title="II. 매크로 국면", url_path="macro"),
+    st.Page("views/calendar.py", title="III. 실적 캘린더", url_path="calendar"),
+    st.Page("views/group.py", title="IV. 그룹 상세", url_path="group"),
+    st.Page("views/ticker.py", title="V. 종목 상세", url_path="ticker"),
 ]
 
 nav = st.navigation(pages)

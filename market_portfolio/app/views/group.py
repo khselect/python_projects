@@ -1,4 +1,4 @@
-"""③ 그룹 상세 — 이 그룹은 실적 시즌에 어떻게 움직였나 (F12·F13). 게시 JSON만 읽는다."""
+"""IV. 그룹 상세 — 이 그룹은 실적 시즌에 어떻게 움직였나 (F12·F13). 게시 JSON만 읽는다."""
 
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ cov = coverage()
 gid = st.session_state.get("group", cov.defaults.get("groups", ["semis"])[0])
 d = group_json(gid)
 g = cov.group(gid)
-st.title(f"③ 그룹 상세 — {g.name}")
+st.title(f"IV. 그룹 상세 — {g.name}")
 if d is None:
     st.warning("그룹 계산 결과가 아직 없습니다. 다음 매일 배치(07:15 KST) 뒤에 표시됩니다.")
     st.code("docker compose exec market-jobs python -m pf.jobs.run daily", language="bash")

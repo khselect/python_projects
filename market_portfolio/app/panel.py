@@ -4,8 +4,8 @@
 F20 연결 뒤 AI 칸을 위로 올리거나 이름을 바꿀 수 있다.
 
 보고 있는 화면의 맥락(그룹·종목)을 따라간다.
-  ④ 종목 상세 : 선택한 종목 + 그 종목의 산업 그룹
-  그 외 화면  : 사이드바 관심 그룹 (+ ④에서 마지막으로 본 종목이 같은 그룹이면 함께)
+  V. 종목 상세 : 선택한 종목 + 그 종목의 산업 그룹
+  그 외 화면  : 사이드바 관심 그룹 (+ V에서 마지막으로 본 종목이 같은 그룹이면 함께)
 """
 
 from __future__ import annotations
@@ -63,10 +63,10 @@ def _ticker(t: str):
 def _context(page_path: str) -> tuple[str, str | None]:
     cov = coverage()
     gid = st.session_state.get("group") or cov.defaults.get("groups", ["semis"])[0]
-    # ④의 선택 위젯 키("ticker")는 다른 화면으로 가면 Streamlit이 지운다 → 마지막으로 본 종목을 따로 쓴다
+    # V의 선택 위젯 키("ticker")는 다른 화면으로 가면 Streamlit이 지운다 → 마지막으로 본 종목을 따로 쓴다
     t = st.session_state.get("ticker") or st.session_state.get("last_ticker")
     if page_path == "ticker":
-        t = t if t in cov.tickers else "AVGO"  # ④ 첫 진입 기본값과 같게
+        t = t if t in cov.tickers else "AVGO"  # V. 첫 진입 기본값과 같게
         own = next((g.id for g in cov.industry if t in g.members), gid)
         return own, t
     members = cov.group(gid).members
@@ -75,7 +75,7 @@ def _context(page_path: str) -> tuple[str, str | None]:
 
 def render(page_path: str) -> None:
     # 기본(첫) 화면의 url_path는 항상 "" (Streamlit 규칙) → 이름으로 바꿔 쓴다.
-    # (v0.20까지 기본 화면이던 ①에서 page_path == "macro"가 맞지 않아 매크로 해설 대신 그룹 해설이 나오던 버그)
+    # (v0.20까지 기본 화면이던 II에서 page_path == "macro"가 맞지 않아 매크로 해설 대신 그룹 해설이 나오던 버그)
     page_path = page_path or "overview"
     st.html(STICKY_CSS)
     st.markdown('<div class="synth-anchor"></div>', unsafe_allow_html=True)

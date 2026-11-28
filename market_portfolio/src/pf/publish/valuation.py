@@ -1,4 +1,4 @@
-"""밸류에이션 게시 — data/publish/valuation/{group_id}.json (③ 그룹 상세 밸류에이션 섹션)."""
+"""밸류에이션 게시 — data/publish/valuation/{group_id}.json (IV. 그룹 상세 밸류에이션 섹션)."""
 
 from __future__ import annotations
 

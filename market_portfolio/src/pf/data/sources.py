@@ -54,7 +54,7 @@ class SyntheticTruth:
     scales: tuple[float, float, float] = (0.03, 0.015, 0.03)
 
 
-# 합성 지수·선물의 마지막 값 (⓪ 시장 개요 화면이 그럴듯하게 보이도록 수준만 맞춘다)
+# 합성 지수·선물의 마지막 값 (I. 시장 개요 화면이 그럴듯하게 보이도록 수준만 맞춘다)
 SYNTH_LEVELS = {
     "^GSPC": 6700, "^NDX": 24500, "^DJI": 46500, "^KS11": 3900, "^KQ11": 880,
     "DX-Y.NYB": 99, "KRW=X": 1420, "CL=F": 61, "BZ=F": 65, "GC=F": 3950, "SI=F": 47, "HG=F": 5.0, "NG=F": 4.2,
@@ -100,7 +100,7 @@ class SyntheticSource(Source):
             i += 63 + int(rng.integers(-3, 4))
         return dates
 
-    ORIGIN = "2005-01-03"  # 시작일과 무관하게 같은 경로를 만들고 잘라낸다 (⓪·① 화면의 같은 종목 값이 일치하도록)
+    ORIGIN = "2005-01-03"  # 시작일과 무관하게 같은 경로를 만들고 잘라낸다 (I·II. 화면의 같은 종목 값이 일치하도록)
 
     def prices(self, tickers: list[str], start: str = "2012-01-01") -> pd.DataFrame:
         full = self._prices(tickers, min(pd.Timestamp(start), pd.Timestamp(self.ORIGIN)))

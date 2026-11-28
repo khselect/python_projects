@@ -1,7 +1,7 @@
-"""⓪ 시장 개요 → data/publish/overview.json (화면이 읽는 유일한 파일).
+"""I. 시장 개요 → data/publish/overview.json (화면이 읽는 유일한 파일).
 
 market_monitor(khselect/market_monitor)의 화면 패널 4개(주요 지수·원자재·미 국채·섹터)를 옮긴 것.
-화면 구성은 config/overview.yaml. 수치 계산만 하고 판정은 하지 않는다 — 판정은 ① 국면 점수(시장 층)가 맡는다.
+화면 구성은 config/overview.yaml. 수치 계산만 하고 판정은 하지 않는다 — 판정은 II. 국면 점수(시장 층)가 맡는다.
 예외: VIX 국면 배지(안정·보통·위기)는 market_monitor와 같은 경계로 여기서 붙인다.
 
 S0(비공개) 전용 — 지수·선물 시세가 Yahoo 파생. 공개(S1) 전 라이선스 데이터로 교체.

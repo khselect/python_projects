@@ -2,7 +2,7 @@
 
   python -m pf.jobs.run daily                                매일 배치: 산업 그룹 10개 + 매크로 국면 + 실적 1~5일 전 예측 기록
   python -m pf.jobs.run macro                                매크로 국면만 계산 (FRED_API_KEY 필요, 오프라인은 합성)
-  python -m pf.jobs.run overview                             ⓪ 시장 개요만 계산 (지수·원자재·국채·섹터)
+  python -m pf.jobs.run overview                             I. 시장 개요만 계산 (지수·원자재·국채·섹터)
   python -m pf.jobs.run macro-eval                           국면 점수 검증: 스트레스 구간 지연·오경보 (6개 vs 10개 지표)
   python -m pf.jobs.run publish [--group semis] [--cache]   그룹 실적 반응 계산·게시
   python -m pf.jobs.run record AVGO                          실적 전 예측 기록 보관
@@ -96,7 +96,7 @@ def daily() -> int:
         macro = {"ok": True}
     except Exception as e:  # FRED 키 누락·수집 실패가 종목 계산 결과를 막지 않게
         macro = {"ok": False, "error": f"{type(e).__name__}: {e}"}
-    try:  # ⓪ 시장 개요 (지수·원자재·국채·섹터) — 실패해도 나머지 결과는 유지
+    try:  # I. 시장 개요 (지수·원자재·국채·섹터) — 실패해도 나머지 결과는 유지
         from pf.publish.overview import publish_overview
 
         publish_overview()

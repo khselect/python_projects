@@ -67,7 +67,7 @@ def _verdict_facts(macro: dict | None, group: dict | None, ticker: dict | None) 
     return out
 
 
-# ── ① 매크로 ─────────────────────────────────────────────
+# ── II. 매크로 ─────────────────────────────────────────────
 
 def _indicator_fact(ind: dict) -> str:
     name, s, v = ind["name"], SIGNAL.get(ind["signal"], "자료 없음"), ind.get("values") or {}
@@ -128,16 +128,16 @@ def macro_digest(macro: dict) -> Digest:
         chg = ", ".join(f"{mk['names'][k]} {pct(v)}" for k, v in mk["change"].items())
         facts.append(f"{mk['dates'][0]}부터 기준일까지 누적 변화: {chg}")
     return Digest(
-        "macro", "macro", "① 매크로 국면", macro["asof"], facts,
+        "macro", "macro", "II. 매크로 국면", macro["asof"], facts,
         _terms(["regime_score", "stress"]),  # 지표별 기준은 근거 문장에 값으로 이미 있다 (근거가 길면 12b가 느려짐, 11-27 실측 52초)
         [f"macro.json ({macro['asof']})"],
     )
 
 
-# ── ⓪ 시장 개요 ──────────────────────────────────────────
+# ── I. 시장 개요 ──────────────────────────────────────────
 
 def overview_digest(ov: dict, macro: dict | None = None) -> Digest:
-    """수치 요약만. 판정 문장은 ① 국면(매크로 근거)에서 가져온다."""
+    """수치 요약만. 판정 문장은 II. 국면(매크로 근거)에서 가져온다."""
     P = ov["panels"]
     by = {i["id"]: i for k in ("indices", "commodities") for i in P[k]["items"] if not i.get("missing")}
     facts = []
@@ -146,7 +146,7 @@ def overview_digest(ov: dict, macro: dict | None = None) -> Digest:
         facts.append(f"VIX 국면 '{vr['label']}' (5거래일 평균 {vr['avg']:.1f}, 최근 1개월 최고 {vr['max_1m']:.1f}; "
                      f"{vr['thresholds'][0]} 미만 안정, {vr['thresholds'][1]} 이상 위기)")
     if macro:
-        facts.append(f"① 국면 점수 {fmt_score(macro['score'])}/{macro.get('score_range', 6)}, 국면 '{macro['regime']}'")
+        facts.append(f"II. 국면 점수 {fmt_score(macro['score'])}/{macro.get('score_range', 6)}, 국면 '{macro['regime']}'")
     for k in ("SPX", "NDX", "KOSPI", "VIX", "DXY", "USDKRW"):
         i = by.get(k)
         if i:
@@ -171,13 +171,13 @@ def overview_digest(ov: dict, macro: dict | None = None) -> Digest:
         facts.append(f"섹터 1개월 수익률 상위 {sec[0]['name']} {pct(sec[0]['1M'])}, 하위 {sec[-1]['name']} {pct(sec[-1]['1M'])}; "
                      f"200일선 위 섹터 {above}/{len(sec)}개")
     return Digest(
-        "overview", "overview", "⓪ 시장 개요", ov["asof"], facts,
+        "overview", "overview", "I. 시장 개요", ov["asof"], facts,
         _terms(["vix"]),
         [f"overview.json ({ov['asof']})"] + ([f"macro.json ({macro['asof']})"] if macro else []),
     )
 
 
-# ── ③ 그룹 ──────────────────────────────────────────────
+# ── IV. 그룹 ──────────────────────────────────────────────
 
 def _valuation_facts(val: dict | None) -> list[str]:
     if not val:
@@ -243,7 +243,7 @@ def group_digest(group: dict, valuation: dict | None = None, macro: dict | None 
     facts += _valuation_facts(valuation)
     facts += _verdict_facts(macro, group, None)
     return Digest(
-        "group", g["id"], f"③ 그룹 상세 — {g['name']}", group["asof"], facts,
+        "group", g["id"], f"IV. 그룹 상세 — {g['name']}", group["asof"], facts,
         _terms(["car", "interval90"]),
         [f"group/{g['id']}.json ({group['asof']})"] + ([f"valuation/{g['id']}.json"] if valuation else [])
         + (["macro.json"] if macro else []),
@@ -251,7 +251,7 @@ def group_digest(group: dict, valuation: dict | None = None, macro: dict | None 
     )
 
 
-# ── ④ 종목 ──────────────────────────────────────────────
+# ── V. 종목 ──────────────────────────────────────────────
 
 def ticker_digest(t: dict, group: dict | None = None, macro: dict | None = None) -> Digest:
     h1 = t["sim"]["horizons"]["1"]
@@ -270,7 +270,7 @@ def ticker_digest(t: dict, group: dict | None = None, macro: dict | None = None)
             facts.append(f"{hz}일 누적: 중앙값 {pct(x['pcts']['50'])}, 90% 구간 {pct(x['pcts']['5'])} ~ {pct(x['pcts']['95'])}")
     facts += _verdict_facts(macro, group, t)
     return Digest(
-        "ticker", t["ticker"], f"④ 종목 상세 — {t['ticker']}", t["asof"], facts,
+        "ticker", t["ticker"], f"V. 종목 상세 — {t['ticker']}", t["asof"], facts,
         _terms(["p_down", "interval90"]),
         [f"ticker/{t['ticker']}.json ({t['asof']})"],
         [pct(h1["pcts"]["5"]), pct(h1["cvar5"])],

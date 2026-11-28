@@ -95,7 +95,7 @@ def load_model() -> dict:
 
 
 def load_overview() -> dict:
-    """⓪ 시장 개요 패널 구성."""
+    """I. 시장 개요 패널 구성."""
     return _read("overview.yaml")
 
 

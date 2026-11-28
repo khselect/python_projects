@@ -42,7 +42,7 @@ macro:
     stress_exit_ndx_dd: -0.15  #         나스닥100이 고점 대비 −15%보다 회복한 날이
     stress_exit_days: 5      #         5거래일 연속 (v0.22 히스테리시스)
 
-valuation:                   # ③ 밸류에이션 (후행 P/E·P/FCF, 선행 P/E 누적)
+valuation:                   # IV. 밸류에이션 (후행 P/E·P/FCF, 선행 P/E 누적)
   start: "2016-01-01"        # 그래프 시작 (TTM 4분기 확보 후)
   av_daily_calls: 20         # Alpha Vantage 무료 25회/일 중 사용량 (종목당 2회)
   max_age_days: 90           # 재무제표 다시 받는 주기

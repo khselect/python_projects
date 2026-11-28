@@ -1,4 +1,4 @@
-"""① 매크로 국면 — 큰 자금은 어디로 움직이나 (F16). data/publish/macro.json만 읽는다."""
+"""II. 매크로 국면 — 큰 자금은 어디로 움직이나 (F16). data/publish/macro.json만 읽는다."""
 
 from __future__ import annotations
 
@@ -60,7 +60,7 @@ def basis(ind: dict) -> str:
     return ""
 
 
-st.title("① 매크로 국면")
+st.title("II. 매크로 국면")
 st.caption("큰 자금은 어디로 움직이나 — 느린 매크로 층 6개 + 빠른 시장 층 4개, 10개 지표의 방향으로 국면을 판정합니다")
 
 d = macro()

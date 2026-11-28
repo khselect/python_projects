@@ -67,7 +67,7 @@ class Scripted:
         pass
 
 
-D = Digest("ticker", "PG", "④ 종목 상세 — PG", "2026-11-25",
+D = Digest("ticker", "PG", "V. 종목 상세 — PG", "2026-11-25",
            ["PG 다음 실적 2026-12-04 AMC", "다음 날: 상승 확률 67%, 하락 확률 33%, 기대값 +1.9%, 90% 구간 -7.3% ~ +11.2%, 표본 57건"])
 CFG = {"num_predict": 400, "temperature": 0.2}
 

@@ -1,4 +1,4 @@
-# ⓪ 시장 개요 화면 구성 (이 파일만 고치면 패널 항목이 바뀜).
+# I. 시장 개요 화면 구성 (이 파일만 고치면 패널 항목이 바뀜).
 # market_monitor(khselect/market_monitor)의 universe.yaml에서 화면 패널 4개만 옮김 (11-27).
 # source: yahoo | fred · kind: price(가격) | yield(금리 %, 변화는 bp)
 panels:

@@ -87,7 +87,7 @@ def group_layer(group: dict | None) -> Layer:
 
 def ticker_layer(ticker: dict | None) -> Layer:
     if not ticker:
-        return Layer("ticker", "종목", None, "종목 미선택 — ④ 종목 상세에서 고르면 반영")
+        return Layer("ticker", "종목", None, "종목 미선택 — V. 종목 상세에서 고르면 반영")
     h = ticker["sim"]["horizons"]["1"]
     p_down, p_up, p5 = h["p_down"], h["p_up"], h["pcts"]["5"]
     if p_down >= P_LEVEL or p5 <= TAIL:

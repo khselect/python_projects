@@ -53,7 +53,7 @@ theme_groups:
 # 50종목에 포함하지 않는 참조 ETF
 reference_etfs:
   benchmarks: [SOXX, IGV, XLC, XLK, XLF, XLV, XLY, XLP, XLI, SPY, QQQ]
-  macro: [RSP, DBC, TLT, IEF, UUP, BIL, OEF]   # OEF: S&P 100, ① 지수 비교용
+  macro: [RSP, DBC, TLT, IEF, UUP, BIL, OEF]   # OEF: S&P 100, II. 지수 비교용
   leveraged: [USD, FNGU]
 
 defaults:

@@ -1,6 +1,6 @@
 """그룹 단위 실적 반응 계산 → 종목별 게시 JSON (data/publish/ticker/{T}.json).
 
-화면(④ 종목 상세)은 이 JSON만 읽는다. 페이지 조회 시 계산·LLM 호출 없음.
+화면(V. 종목 상세)은 이 JSON만 읽는다. 페이지 조회 시 계산·LLM 호출 없음.
 """
 
 from __future__ import annotations
@@ -208,7 +208,7 @@ def publish_all(source: Source | None = None, earnings_max_age_days: float = 3) 
             result["groups"][g.id] = {"ok": True, "tickers": [p.stem for p in paths], "skipped": skipped}
         except Exception as e:  # 한 그룹 실패가 나머지를 막지 않게
             result["groups"][g.id] = {"ok": False, "error": f"{type(e).__name__}: {e}"}
-    # ③ 그룹 상세·② 캘린더 (종목 JSON을 읽으므로 종목 계산 뒤에)
+    # IV. 그룹 상세·III. 캘린더 (종목 JSON을 읽으므로 종목 계산 뒤에)
     try:
         from pf.publish.group import publish_groups
 

@@ -27,7 +27,7 @@ SERIES = {
     "DTWEXBGS": "광의 달러지수 (연준)",
     "DGS2": "미 국채 2년 수익률",  # 시장 층: 단기금리 변동
 }
-YIELDS = {"DGS1": "1년", "DGS2": "2년", "DGS5": "5년", "DGS10": "10년", "DGS30": "30년"}  # ⓪ 국채 곡선
+YIELDS = {"DGS1": "1년", "DGS2": "2년", "DGS5": "5년", "DGS10": "10년", "DGS30": "30년"}  # I. 국채 곡선
 INTERNAL_ONLY = {"BAMLH0A0HYM2"}
 
 NOTICE = (

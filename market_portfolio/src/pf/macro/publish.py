@@ -1,4 +1,4 @@
-"""매크로 국면 → data/publish/macro.json (① 화면이 읽는 유일한 파일)."""
+"""매크로 국면 → data/publish/macro.json (II. 화면이 읽는 유일한 파일)."""
 
 from __future__ import annotations
 

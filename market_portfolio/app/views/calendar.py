@@ -1,4 +1,4 @@
-"""② 실적 캘린더 — 이번 달 누가, 어느 그룹이 발표하나 (F11). calendar.json만 읽는다."""
+"""III. 실적 캘린더 — 이번 달 누가, 어느 그룹이 발표하나 (F11). calendar.json만 읽는다."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ def goto(page: str, **state) -> None:
     st.session_state["_goto"] = page
 
 
-st.title("② 실적 캘린더")
+st.title("III. 실적 캘린더")
 st.caption("이번 달 누가, 어느 그룹이 발표하나 — 관심 그룹별 발표 예정 종목과 그룹의 과거 실적 시즌 반응")
 
 d = calendar()

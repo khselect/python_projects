@@ -1,4 +1,4 @@
-"""④ 종목 상세 — 다음 실적에 어떻게 반응할까 (F3~F7). 게시 JSON만 읽는다."""
+"""V. 종목 상세 — 다음 실적에 어떻게 반응할까 (F3~F7). 게시 JSON만 읽는다."""
 
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ def published(ticker: str):
 
 
 cov = coverage()
-st.title("④ 종목 상세")
+st.title("V. 종목 상세")
 st.caption("다음 실적에 어떻게 반응할까 — 과거 실적 반응으로 만든 확률 분포")
 
 # 오른쪽 열은 종합 인사이트 패널이 차지 (v0.16) — 비교 조회는 탭으로 이동

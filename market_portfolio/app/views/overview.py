@@ -1,6 +1,6 @@
-"""⓪ 시장 개요 — 오늘 무엇이 움직였나. data/publish/overview.json만 읽는다.
+"""I. 시장 개요 — 오늘 무엇이 움직였나. data/publish/overview.json만 읽는다.
 
-market_monitor의 화면 패널 4개(주요 지수·원자재·미 국채·섹터)를 옮긴 것. 수치만 보여주고 판정은 ① 국면 점수가 한다.
+market_monitor의 화면 패널 4개(주요 지수·원자재·미 국채·섹터)를 옮긴 것. 수치만 보여주고 판정은 II. 국면 점수가 한다.
 """
 
 from __future__ import annotations
@@ -34,8 +34,8 @@ def num(v):
     return f"{v:,.0f}" if abs(v) >= 1000 else (f"{v:,.2f}" if abs(v) >= 10 else f"{v:,.3f}")
 
 
-st.title("⓪ 시장 개요")
-st.caption("오늘 무엇이 움직였나 — 주요 지수·원자재·미 국채·섹터. 판정은 ① 매크로 국면에서 합니다")
+st.title("I. 시장 개요")
+st.caption("오늘 무엇이 움직였나 — 주요 지수·원자재·미 국채·섹터. 판정은 II. 매크로 국면에서 합니다")
 
 d = _load(OVERVIEW_PATH)
 if d is None:
@@ -56,7 +56,7 @@ if m:
     color = "red" if m["regime"].startswith("위험회피") else ("blue" if m["regime"] == "확장" else "gray")
     b2.markdown(f"**국면** :{color}-background[{m['regime']}]", help=tip("regime_score"))
     b2.caption(f"국면 점수 {fmt_score(m['score'])}/{m.get('score_range', 6)}")
-    if b3.button("① 국면 근거 보기 →", key="goto_macro"):
+    if b3.button("II. 국면 근거 보기 →", key="goto_macro"):
         st.switch_page("views/macro.py")
 st.caption(f"기준일 {d['asof']} (종목마다 마지막 거래일이 다를 수 있음 · 한국·미국 휴장일)")
 
@@ -125,7 +125,7 @@ with right:
 st.subheader(panels["sectors"]["title"])
 sec = [i for i in panels["sectors"]["items"] if not i.get("missing")]
 above = sum(1 for i in sec if (i.get("vs_ma200") or 0) > 0)
-st.caption(f"기간별 수익률(%) · ▲ 200일선 위 / ▽ 아래 — {above}/{len(sec)}개 위, 이 비율이 ① 시장 층의 '섹터 폭' 지표입니다 · "
+st.caption(f"기간별 수익률(%) · ▲ 200일선 위 / ▽ 아래 — {above}/{len(sec)}개 위, 이 비율이 II. 시장 층의 '섹터 폭' 지표입니다 · "
            "색은 기간(열)마다 따로 비교 · 1개월 수익률 순",
            help=tip("sectors"))
 st.plotly_chart(sector_heatmap(sec), width="stretch", config={"displayModeBar": False})

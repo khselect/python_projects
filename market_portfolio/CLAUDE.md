@@ -13,10 +13,10 @@
 
 ## 구조
 - `src/pf/` 패키지 (PYTHONPATH=src). 설정은 `pf.settings`, YAML 로드·검증은 `pf.config`.
-- `app/main.py` Streamlit 진입점(`st.navigation`), 화면은 `app/views/`(⓪~④, 기본 화면 ⓪ — 기본 화면의 url_path는 항상 ""), 공통은 `app/common.py`.
+- `app/main.py` Streamlit 진입점(`st.navigation`), 화면은 `app/views/`(I~V, 기본 화면 I — 기본 화면의 url_path는 항상 ""), 공통은 `app/common.py`.
 - 세로 3분할: 오른쪽 종합 인사이트 패널 `app/panel.py`(항상 표시, sticky). 규칙은 `pf.synth.rules`(F19). 패널은 화면보다 먼저 렌더.
 - `config/coverage.yaml` 50종목(10그룹×5) + 테마. 테마 종목은 반드시 50종목 안.
-- `config/glossary.yaml` ⓘ 가이드 단일 출처. `config/model.yaml` 시뮬·보정 관문·국면 경계(macro.market). `config/overview.yaml` ⓪ 패널 구성.
+- `config/glossary.yaml` ⓘ 가이드 단일 출처. `config/model.yaml` 시뮬·보정 관문·국면 경계(macro.market). `config/overview.yaml` I 시장 개요 패널 구성.
 - `data/` 는 커밋 안 함 (Parquet·SQLite·게시 JSON).
 
 ## 개발
@@ -53,8 +53,8 @@ python -m pf.jobs.run ai [--show semis]                  # AI 해설 미리 생�
 - 밸류에이션: `pf.data.fundamentals`(Alpha Vantage 분기 재무, `ALPHAVANTAGE_API_KEY`, 하루 20회 대기열) → `pf.valuation`(TTM·분할 보정 — 직전·직후 분기 주식수로 이미 반영 여부 판단·그룹 합산·`insight` 해설 수치·선행 P/E 누적) → `pf.publish.valuation`(data/publish/valuation/*.json). 실패해도 다른 배치 결과는 유지
 - AI 해설(F20 1단계): `pf.ai.digest`(게시 JSON → 근거 문장, 숫자는 여기서만) → `pf.ai.client`(Ollama `/api/chat`, 오프라인은 FakeLLM, `PF_AI_BACKEND=ollama|fake|off`) → `pf.ai.guard`(근거 대조·금지어·길이, 실패 시 1회 재시도) → `pf.ai.pregen`(매일 배치 끝, data/publish/ai/*.json, 실패·Ollama 없음은 템플릿). 확인: `python -m pf.jobs.run ai --show semis`. 프롬프트를 바꾸면 `PROMPT_VERSION`을 올린다
 - 매크로(v0.21 두 속도): `pf.data.fred`(FRED, 키 `FRED_API_KEY`) + Yahoo(^VIX·^GSPC·^NDX·섹터 ETF) → `pf.macro.indicators`(매크로 층 6개 5일 확정 + 시장 층 4개 2일 확정, −10~+10, 경계 ±4, 급변 규칙 — 진입 즉시·해제 5거래일 히스테리시스) → `pf.macro.publish`(data/publish/macro.json, 2007년부터 계산) + `pf.macro.evaluate`(같은 계산으로 52주 고점 −15% 하락 구간의 탐지 지연·오경보, 6개 안·v0.21·현재안 비교 → macro_eval.json, `python -m pf.jobs.run macro-eval`). 신용(ICE) 값은 화면에 내지 않는다
-- ⓪ 시장 개요: `config/overview.yaml` → `pf.publish.overview`(data/publish/overview.json). market_monitor 패널 4개(지수·원자재·국채·섹터)를 옮긴 것. 수치만, 판정은 ①
+- I. 시장 개요: `config/overview.yaml` → `pf.publish.overview`(data/publish/overview.json). market_monitor 패널 4개(지수·원자재·국채·섹터)를 옮긴 것. 수치만, 판정은 II
 - 모델: `pf.events.reactions`(반응일·β 조정 초과수익) → `pf.sim.mixture`(3성분 t 혼합 MAP-EM, 그룹 축소) → `pf.sim.reaction_mc`(40만 회)
 
 ## MVP 순서 (PLAN.md §13)
-골격 → ④ 종목 반응 분포(AVGO, 12/09 실적 전) → ① 매크로 국면 → ②③ 그룹 — 모두 구현됨(11-26). ⓪ 시장 개요·두 속도 국면 점수(11-27). 다음은 v1(F8·F9·F17·F20 2단계·F21).
+골격 → V. 종목 반응 분포(AVGO, 12/09 실적 전) → II. 매크로 국면 → III·IV 그룹 — 모두 구현됨(11-26). I. 시장 개요·두 속도 국면 점수(11-27). 다음은 v1(F8·F9·F17·F20 2단계·F21).
