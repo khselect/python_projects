@@ -142,6 +142,7 @@ def build(df: pd.DataFrame, source_name: str, hi: int = 4, lo: int = -4, prices:
         "neutral_bands": True,
         "indicators": indicators,
         "compare": {str(m): _snapshot(df, asof - pd.DateOffset(months=m), hi, lo) for m in COMPARE_MONTHS},
+        "long": long_run(df, hi, lo),
         "history": {
             "dates": [d.date().isoformat() for d in wk.index],
             "score": [int(v) for v in wk["score"]],
@@ -151,6 +152,31 @@ def build(df: pd.DataFrame, source_name: str, hi: int = 4, lo: int = -4, prices:
         },
         "markets": markets(prices, wk.index[0] - pd.Timedelta(days=6)) if prices is not None and len(wk) else None,
         "notice": {"fred": NOTICE, "terms_url": TERMS_URL, "internal_only": sorted(INTERNAL_ONLY)},
+    }
+
+
+def long_run(df: pd.DataFrame, hi: int, lo: int, years: int = HISTORY_YEARS) -> dict | None:
+    """장기 기준 위치 (2007년 이후, 시장 층 4개가 모두 계산되기 시작한 날부터, 일간).
+
+    '최근 2년은 위험회피가 적었다'가 상대적으로 어떤지 — 장기 평균과 나란히 보이기 위한 값 (11-28).
+    """
+    ready = df[[f"raw_{k}" for k in ("vix", "trend", "sectors", "rates")]].notna().all(axis=1) if "raw_vix" in df else None
+    d = df[ready.cummax()] if ready is not None and ready.any() else df
+    if len(d) < 250:
+        return None
+    st = d["stress"] == 1 if "stress" in d else pd.Series(False, index=d.index)
+    ro = (d["score"] <= lo) | st
+    ex = (d["score"] >= hi) & ~st
+    recent = d.index >= d.index[-1] - pd.DateOffset(years=years)
+    now = d["score"].iloc[-1]
+    return {
+        "since": d.index[0].date().isoformat(), "n_days": int(len(d)), "years": years,
+        "score_lower_share": round(float((d["score"] < now).mean()), 3),   # 장기 일간 점수 중 지금보다 낮았던 날 비율
+        "score_median": float(d["score"].median()),
+        "riskoff_share": round(float(ro.mean()), 3), "riskoff_share_recent": round(float(ro[recent].mean()), 3),
+        "expansion_share": round(float(ex.mean()), 3), "expansion_share_recent": round(float(ex[recent].mean()), 3),
+        "negative_share": round(float((d["score"] < 0).mean()), 3),
+        "negative_share_recent": round(float((d["score"][recent] < 0).mean()), 3),
     }
 
 

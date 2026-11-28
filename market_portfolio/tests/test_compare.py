@@ -43,3 +43,16 @@ def test_macro_history_facts():
 def test_short_history_returns_nothing():
     assert group_year_facts({"years": [2025, 2026], "values": [[0.01] * 12] * 2}, "2026-11-25") == []
     assert macro_history_facts({"score": 0, "history": {"score": [0, 1]}}) == []
+
+
+def test_long_run_position_line():
+    m = {"score": 0, "asof": "2026-11-27", "regime": "위험회피(급변)", "regime_since": "2026-11-20",
+         "thresholds": {"expansion": 4, "riskoff": -4},
+         "history": {"score": [5] * 9 + [0], "stress": [False] * 9 + [True]},
+         "long": {"since": "2007-10-17", "years": 2, "n_days": 4800, "score_lower_share": 0.31, "score_median": 2.0,
+                  "riskoff_share": 0.24, "riskoff_share_recent": 0.10, "expansion_share": 0.45,
+                  "expansion_share_recent": 0.63, "negative_share": 0.3, "negative_share_recent": 0.12}}
+    f = macro_history_facts(m)
+    line = next(x for x in f if x.startswith("위험회피였던 날 비율"))
+    assert "최근 2년 10% — 2007년 이후 전체 24%보다 낮음" in line and "확장이었던 날: 최근 63%, 전체 45%" in line
+    assert any("2007년 이후 일간 국면 점수 중 지금(0)보다 낮았던 날 31% (장기 중앙값 +2)" in x and "변동성" in x for x in f)

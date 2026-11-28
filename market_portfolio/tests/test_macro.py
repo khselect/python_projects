@@ -84,6 +84,8 @@ def test_publish_macro_offline(tmp_path, monkeypatch, macro_df):
     assert d["score"] == d["layers"]["macro"]["score"] + d["layers"]["market"]["score"]
     h = d["history"]
     assert [a + b for a, b in zip(h["macro"], h["market"])] == h["score"] and len(h["stress"]) == len(h["score"])
+    lg = d["long"]
+    assert lg and lg["n_days"] >= 250 and 0 <= lg["riskoff_share"] <= 1 and 0 <= lg["riskoff_share_recent"] <= 1
     credit = next(i for i in d["indicators"] if i["key"] == "credit")
     assert credit["public_values"] is False and set(credit["values"]) == {"direction"}  # 값 비공개
     assert 90 <= len(d["history"]["score"]) <= 110  # 2년 주간

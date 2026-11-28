@@ -134,6 +134,16 @@ with st.expander("ⓘ 지표별 판정 기준"):
 
 # ── 2년 추이 ─────────────────────────────────────────────
 st.markdown("**국면 점수 2년 추이** (주간 · 막대 = 층별 점수, 선 = 합계, 진한 빨강 배경 = 급변 규칙 발동 주)")
+lg = d.get("long")
+if lg:
+    rr, ra = lg["riskoff_share_recent"], lg["riskoff_share"]
+    st.caption(
+        f"장기 기준 ({lg['since'][:4]}년 이후 일간): 위험회피였던 날 최근 {lg['years']}년 **{rr:.0%}** · 전체 **{ra:.0%}** — "
+        f"확장 최근 {lg['expansion_share_recent']:.0%} · 전체 {lg['expansion_share']:.0%} · "
+        f"지금 점수({fmt_score(d['score'])})보다 낮았던 날 {lg['score_lower_share']:.0%}. "
+        "국면 점수는 위험자산에 유리한 조건이 몇 개인지(우호도)이지 변동성(안정도)이 아닙니다 — 변동성은 VIX를 보세요. "
+        "주가는 천천히 오르고 빨리 떨어지는 경향이 있어 점수는 장기적으로도 양수 쪽에 더 오래 머뭅니다.",
+        help="최근 2년 추이만 보면 음수가 드물어 '늘 안정적'으로 보일 수 있어, 같은 계산으로 2007년 이후 전체와 나란히 보여줍니다")
 h = d["history"]
 st.plotly_chart(
     regime_history(h["dates"], h["score"], th["expansion"], th["riskoff"], macro=h.get("macro"), market=h.get("market"),

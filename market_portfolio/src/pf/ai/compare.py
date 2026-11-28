@@ -116,6 +116,18 @@ def macro_history_facts(macro: dict) -> list[str]:
         out.append(f"현재 국면 '{macro['regime']}' — {macro['regime_since']}부터 {days}일째(달력일)")
     except (KeyError, ValueError):
         pass
+    lg = macro.get("long")
+    if lg:  # 장기 기준 위치 — '최근 2년이 상대적으로 우호적이었나'를 장기 평균과 나란히
+        y0 = lg["since"][:4]
+        rr, ra = lg["riskoff_share_recent"], lg["riskoff_share"]
+        out.append(f"위험회피였던 날 비율: 최근 {lg['years']}년 {round(rr * 100):d}% — {y0}년 이후 전체 {round(ra * 100):d}%보다 "
+                   f"{'낮음' if rr < ra else ('높음' if rr > ra else '같음')}; 확장이었던 날: 최근 {round(lg['expansion_share_recent'] * 100):d}%, "
+                   f"전체 {round(lg['expansion_share'] * 100):d}%; 점수가 음수였던 날: 최근 {round(lg['negative_share_recent'] * 100):d}%, "
+                   f"전체 {round(lg['negative_share'] * 100):d}%")
+        med = lg["score_median"]
+        med_s = fmt_score(int(med)) if float(med).is_integer() else f"{med:+.1f}"
+        out.append(f"{y0}년 이후 일간 국면 점수 중 지금({fmt_score(macro['score'])})보다 낮았던 날 {round(lg['score_lower_share'] * 100):d}% "
+                   f"(장기 중앙값 {med_s}) — 국면 점수는 우호도(위험자산에 유리한 조건 수)이지 변동성(안정도)이 아님, 변동성은 VIX")
     vix = next((i for i in macro.get("indicators", []) if i["key"] == "vix"), None)
     v = (vix or {}).get("values") or {}
     if v.get("level") is not None and v.get("pct_1y") is not None:
