@@ -62,7 +62,7 @@ ai:                          # F20 AI 해설 (로컬 Ollama, PLAN §8.1). 맥미
   chat_timeout_s: 60         # 1건 제한
   chat_num_predict: 400
   chat_keep_alive: 30m       # 질문 뒤 30분 상주 (12b 미리 생성과 겹치면 느려질 수 있음)
-  session_daily: 10          # 브라우저 세션당 하루
+  session_daily: 0           # 브라우저 세션당 하루 (0 = 제한 없음). S0는 본인 전용이라 해제(11-28) — S1 공개 시 10으로
   global_daily: 600          # 전체 하루
   max_question_chars: 500
   queue_max: 3               # 동시 1건 + 대기 3건 (OLLAMA_NUM_PARALLEL=1)

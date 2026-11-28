@@ -226,11 +226,13 @@ def _qa_section(page_path: str, gid: str, t: str | None) -> None:
             if h.get("evidence"):
                 with st.expander("근거 보기"):
                     st.text(h["evidence"])
-    left = cfg["session_daily"] - used
+    limited = cfg["session_daily"] > 0  # 0 = 세션 제한 없음 (S0 본인 전용)
+    left = cfg["session_daily"] - used if limited else 1
     d = _page_digest(page_path, gid, t)
     disabled = client is None or d is None or left <= 0
     ph = ("AI 해설이 꺼져 있습니다" if client is None else "근거 자료가 아직 없습니다" if d is None
-          else "오늘 질문 한도를 다 썼습니다" if left <= 0 else f"이 화면에 대해 질문 (오늘 {left}회 남음)")
+          else "오늘 질문 한도를 다 썼습니다" if left <= 0
+          else f"이 화면에 대해 질문 (오늘 {left}회 남음)" if limited else "이 화면에 대해 질문")
     q = st.chat_input(ph, disabled=disabled, key="ai_q", max_chars=cfg["max_question_chars"])
     if q and not disabled:
         with st.spinner("근거를 확인하며 답을 쓰는 중… (보통 10~20초)"):
