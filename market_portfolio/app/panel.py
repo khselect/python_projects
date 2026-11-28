@@ -1,4 +1,4 @@
-"""종합 인사이트 — 모든 화면 오른쪽에 고정되는 패널 (F19 세 층 판정, F20 AI 해설).
+"""종합 인사이트 — 모든 화면 오른쪽에 고정되는 패널 (F19 세 층 판정, F20 AI 해설 + 자유 질문).
 
 이름 (v0.17): 판정은 AI가 아닌 규칙 계산이라 "AI 어시스턴트" 대신 "종합 인사이트".
 F20 연결 뒤 AI 칸을 위로 올리거나 이름을 바꿀 수 있다.
@@ -127,4 +127,95 @@ def _ai_section(page_path: str, gid: str, t: str | None) -> None:
             if d.get("reason"):
                 st.caption(f"템플릿 사유: {d['reason']}")
         st.caption("AI가 쓴 문장은 틀릴 수 있습니다. 숫자는 위 판정과 각 화면을 기준으로 보세요. 투자 권유가 아닙니다.")
-    st.chat_input("자유 질문 (다음 단계에서 사용 가능)", disabled=True, key="ai_q")
+    _qa_section(page_path, gid, t)
+
+
+# ── F20 2단계: 자유 질문 ─────────────────────────────────────
+@st.cache_resource
+def _qa_runtime():
+    """프로세스 하나에 LLM 클라이언트·대기열 하나 (방문자 모두 공유)."""
+    from pf.ai.client import get_client
+    from pf.ai.qa import Gate, qa_config
+
+    cfg = qa_config()
+    return cfg, get_client(cfg["chat_model"], timeout=cfg["chat_timeout_s"]), Gate(cfg["queue_max"])
+
+
+@st.cache_data(ttl=300)
+def _overview():
+    from pf.publish.overview import OVERVIEW_PATH
+
+    return json.loads(OVERVIEW_PATH.read_text(encoding="utf-8")) if OVERVIEW_PATH.exists() else None
+
+
+@st.cache_data(ttl=300)
+def _valuation(gid: str):
+    from pf.publish.valuation import load_valuation
+
+    return load_valuation(gid)
+
+
+def _page_digest(page_path: str, gid: str, t: str | None):
+    """지금 보는 화면의 근거 (미리 생성 해설과 같은 digest)."""
+    from pf.ai.digest import group_digest, macro_digest, overview_digest, ticker_digest
+
+    m = _macro()
+    try:
+        if page_path == "overview" and _overview():
+            return overview_digest(_overview(), m)
+        if page_path == "macro" and m:
+            return macro_digest(m)
+        if page_path == "ticker" and t and _ticker(t):
+            return ticker_digest(_ticker(t), _group(gid), m)
+        g = _group(gid)
+        if g:
+            return group_digest(g, _valuation(gid), m)
+        return macro_digest(m) if m else None
+    except Exception:
+        return None
+
+
+QA_MODE_NOTE = {
+    "refused": "범위 밖 질문 — AI를 부르지 않고 안내했습니다",
+    "fallback": "검증을 통과한 답이 없어 근거 일부를 보여줍니다",
+    "limit": "한도 안내", "busy": "대기열 가득", "error": "연결 오류",
+}
+
+
+def _qa_section(page_path: str, gid: str, t: str | None) -> None:
+    from datetime import date
+
+    from pf.ai.qa import answer
+
+    cfg, client, gate = _qa_runtime()
+    today = date.today().isoformat()
+    used = st.session_state.setdefault("qa_used", {}).get(today, 0)
+    hist = st.session_state.setdefault("qa_hist", [])
+    st.markdown("**질문하기**", help="지금 보는 화면의 수치와 용어 설명만 근거로 로컬 AI(gemma3:4b)가 답합니다. "
+                "답의 숫자·날짜는 근거와 코드로 대조하고, 맞지 않으면 답 대신 근거를 보여줍니다. "
+                "매수·매도·비중·목표가 질문은 AI를 부르지 않고 안내합니다. 개인정보는 입력하지 마세요.")
+    for h in hist[-3:]:
+        with st.chat_message("user"):
+            st.markdown(_md(h["q"]))
+        with st.chat_message("assistant"):
+            st.markdown(_md(h["text"]))
+            note = (f"{h.get('model')} · {h.get('seconds')}초 · 검증 통과" if h["mode"] == "ai"
+                    else QA_MODE_NOTE.get(h["mode"], h["mode"]))
+            st.caption(f"{h['page']} · {note}")
+            if h.get("evidence"):
+                with st.expander("근거 보기"):
+                    st.text(h["evidence"])
+    left = cfg["session_daily"] - used
+    d = _page_digest(page_path, gid, t)
+    disabled = client is None or d is None or left <= 0
+    ph = ("AI 해설이 꺼져 있습니다" if client is None else "근거 자료가 아직 없습니다" if d is None
+          else "오늘 질문 한도를 다 썼습니다" if left <= 0 else f"이 화면에 대해 질문 (오늘 {left}회 남음)")
+    q = st.chat_input(ph, disabled=disabled, key="ai_q", max_chars=cfg["max_question_chars"])
+    if q and not disabled:
+        with st.spinner("근거를 확인하며 답을 쓰는 중… (보통 10~20초)"):
+            res = answer(q, d, client, cfg, gate)
+        if res["mode"] in ("ai", "fallback"):
+            st.session_state["qa_used"] = {today: used + 1}
+        hist.append({"q": q, "page": d.title, **{k: res.get(k) for k in ("mode", "text", "model", "seconds", "evidence")}})
+        st.session_state["qa_hist"] = hist[-10:]
+        st.rerun()

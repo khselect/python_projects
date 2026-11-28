@@ -78,7 +78,7 @@ def sidebar() -> None:
         st.caption(f"데이터: {'합성(오프라인)' if offline() else '실데이터'}")
         st.caption(f"기준일: {latest_asof()}")
         st.caption(batch_status())
-        st.caption("LLM 호출: 0회")
+        st.caption("LLM 호출: 화면 0회 · 질문할 때만")
 
 
 def footer() -> None:
