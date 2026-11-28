@@ -6,7 +6,7 @@
 ## 원칙 (PLAN.md §2, §12 요약)
 - 숫자·통계·시뮬레이션은 전부 코드. LLM은 숫자를 만들지 않는다.
 - 페이지 조회당 LLM 호출 0. 화면은 사전 계산 JSON을 읽기만 한다.
-- 유료 API 호출 0. AI 해설은 로컬 Ollama(gemma3)만.
+- 유료 API 호출 0. AI 해설은 로컬 Ollama만 (미리 생성 gemma3:12b, 질문 기본 qwen3:8b).
 - 문구는 서술형("과거 강세 우위"). "사라·팔라·늘려라·줄여라·헤지하라", "반드시·확실히·보장" 금지.
 - 모든 확률 옆에 표본 수·기간·기준일. 손실 쪽 숫자(90% 하단, CVaR)를 기대값과 같은 크기로.
 - 개인정보(이름·이메일·아이디·비밀번호) 받지 않음.
@@ -52,7 +52,7 @@ python -m pf.jobs.run ai [--show semis]                  # AI 해설 미리 생�
 - 그룹·캘린더: `pf.events.reactions.event_paths`(CAR 경로) → `pf.publish.group`(data/publish/group/*.json, calendar.json). 종목 JSON을 읽으므로 publish_all에서 종목 계산 뒤 실행
 - 밸류에이션: `pf.data.fundamentals`(Alpha Vantage 분기 재무, `ALPHAVANTAGE_API_KEY`, 하루 20회 대기열) → `pf.valuation`(TTM·분할 보정 — 직전·직후 분기 주식수로 이미 반영 여부 판단·그룹 합산·`insight` 해설 수치·`history_like` 과거 비슷한 백분위 이후 수익률(전체 기간 대비, 독립 구간)·선행 P/E 누적) → `pf.publish.valuation`(data/publish/valuation/*.json). 실패해도 다른 배치 결과는 유지
 - AI 해설(F20 1단계): `pf.ai.digest`(게시 JSON → 근거 문장, 숫자는 여기서만) → `pf.ai.client`(Ollama `/api/chat`, 오프라인은 FakeLLM, `PF_AI_BACKEND=ollama|fake|off`) → `pf.ai.guard`(근거 대조·금지어·길이, 실패 시 1회 재시도) → `pf.ai.pregen`(매일 배치 끝, data/publish/ai/*.json, 실패·Ollama 없음은 템플릿). 확인: `python -m pf.jobs.run ai --show semis`. 프롬프트를 바꾸면 `PROMPT_VERSION`을 올린다
-- 자유 질문(F20 2단계): `pf.ai.qa.answer` — 범위 밖 거절(LLM 미호출) → 화면 digest + 관련 용어 → gemma3:4b → guard(질문 속 숫자 허용) → 1회 재시도 → 근거 일부. 패널 `_qa_section`(`st.cache_resource`로 클라이언트·대기열 Gate 공유). 기록 data/ai/qa/*.jsonl, 한도는 model.yaml ai.*. 모델 선택 `ai.chat_models`(생각 모드 모델은 `pf.ai.client`가 think 끔), 비교 `python -m pf.jobs.run ai-bench --models a,b`(config/ai_questions.yaml)
+- 자유 질문(F20 2단계): `pf.ai.qa.answer` — 범위 밖 거절(LLM 미호출) → 화면 digest + 관련 용어 → qwen3:8b(기본, `ai.chat_model`) → guard(질문 속 숫자 허용) → 1회 재시도 → 근거 일부. 패널 `_qa_section`(`st.cache_resource`로 클라이언트·대기열 Gate 공유). 기록 data/ai/qa/*.jsonl, 한도는 model.yaml ai.*. 모델 선택 `ai.chat_models`(생각 모드 모델은 `pf.ai.client`가 think 끔), 비교 `python -m pf.jobs.run ai-bench --models a,b`(config/ai_questions.yaml)
 - 매크로(v0.21 두 속도): `pf.data.fred`(FRED, 키 `FRED_API_KEY`) + Yahoo(^VIX·^GSPC·^NDX·섹터 ETF) → `pf.macro.indicators`(매크로 층 6개 5일 확정 + 시장 층 4개 2일 확정, −10~+10, 경계 ±4, 급변 규칙 — 진입 즉시·해제 5거래일 히스테리시스) → `pf.macro.publish`(data/publish/macro.json, 2007년부터 계산) + `pf.macro.evaluate`(같은 계산으로 52주 고점 −15% 하락 구간의 탐지 지연·오경보, 6개 안·v0.21·현재안 비교 → macro_eval.json, `python -m pf.jobs.run macro-eval`). 신용(ICE) 값은 화면에 내지 않는다
 - I. 시장 개요: `config/overview.yaml` → `pf.publish.overview`(data/publish/overview.json). market_monitor 패널 4개(지수·원자재·국채·섹터)를 옮긴 것. 수치만, 판정은 II
 - 모델: `pf.events.reactions`(반응일·β 조정 초과수익) → `pf.sim.mixture`(3성분 t 혼합 MAP-EM, 그룹 축소) → `pf.sim.reaction_mc`(40만 회)
